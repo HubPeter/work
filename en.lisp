@@ -1,29 +1,27 @@
-(defvar *x0* 0.110002 ) ; xn: (0, 1) 
-(defvar *alpha*  3.5699456) ; alpha: 3.5699456<u<=4,0<Xi<1
-(defvar *xn* *x0*)  ;n: 0,1,2,...
-
+(defvar *x0*) ; xn: (0, 1) 
+(defvar *alpha*) ; alpha: 3.5699456<u<=4,0<Xi<1
+(defvar *xn*)  ;n: 0,1,2,...
 (defvar *plainfile* "data.txt")
 (defvar *ciperfile* "ciper.txt")
-(defvar *plainfile2* "data2.txt")
+(defvar *plainfile2* "de.txt")
 (defvar *decode* nil)
 
 (defun main()
-  ;main function
-  (format t "Begin encrypt.....~%")
-  (setf *decode* nil)
+  (setf *decode* T)
+  (setf *x0* 0.301000)
+  (setf *alpha* 3.5946)
   (encry)
-  ;(setf *decode* T)
-  ;(encry)  (format t "Complete "))
+  (format t "Complete "))
 
 (defun encry ()
   ;encryption the file
+  (setf *xn* *x0*)
   (defvar content)
   (setf content "")
   (if *decode*
       (setf content (read-txt *ciperfile*))
       (setf content (read-txt *plainfile*)))
-  (format t "~a ~%" *decode*)
-  (format t "content: ~a ~%" content)
+  (format t "~a ~%" content)
   (defvar M 2000)
   (loop for i from 1 to M
        do( loop-next ))
@@ -36,13 +34,18 @@
     (loop for ciperchar in (coerce content 'list)
        do
          ;(format t "~a" ciperchar)
-         (defvar x1* (mod (f246 *xn*) 256))
-         (format stream "~a" 
-                 (int-int-xor x1* (char-int ciperchar)))
-         (loop-next))))
+         (defvar x1*)
+         (setf x1* (mod (f246 *xn*) 256))
+         ;(format t "xn: ~a  f246: ~a~%" *xn* (f246 *xn*) )
+         (format stream "~a " (code-char
+                          (int-int-xor x1*
+                                       (char-int
+                                        ciperchar))))
+         (loop-next)))
+  (format t "~%"))
 
 (defun int-int-xor (a b)
-  (format t "a:~a b:~a~%" a b)
+  ;(format t "a:~a b:~a~%" a b)
   (bit-vector->integer 
    (bit-xor ( expand-bit-array (integer->bit-vector a))
             ( expand-bit-array (integer->bit-vector b)) )))
@@ -80,14 +83,16 @@
     (coerce (integer->bit-list integer) 'bit-vector)))
 
 (defun f246(xi)
-  (+ (* (truncate (mod (* xi 100) 10)) 100)
-     (* (truncate (mod (* xi 10000) 10)) 10)
-     (* (truncate (mod (* xi 1000000) 10)) 1)
+  (+ (* (truncate (mod (* xi 10000) 10)) 100) ;4
+     (* (truncate (mod (* xi 100000) 10)) 10) ;5
+     (* (truncate (mod (* xi 1000000) 10)) 1) ;6
      ))
     
 (defun loop-next()
   ;logstic next value
-  (setf *xn* (* *xn* *alpha* (- 1 *xn*))))
+  (setf *xn* (* *xn* *alpha* (- 1 *xn*)))
+  ;(format t "~a " *xn*)
+  )
 
 (defun read-txt(filename)
   ;read file content
@@ -95,7 +100,8 @@
   (let* ((in (open filename :if-does-not-exist nil)))
      (when in
        (loop for line = (read-line in nil)
-          while line do (setf content (concatenate 'string content line)))
+          while line do 
+            (setf content
+                  (concatenate 'string content line)))
        (close in)))
-  content
-  )
+  content)
