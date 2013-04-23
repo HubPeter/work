@@ -1,32 +1,32 @@
 (defvar *x0*) ; xn: (0, 1) 
 (defvar *alpha*) ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *xn*)  ;n: 0,1,2,...
-(defvar *plainfile* "data.txt")
-(defvar *ciperfile* "ciper.txt")
-(defvar *defile* "de.txt")
+(defvar *plainfile*)
+(defvar *ciperfile*)
+(defvar *defile*)
 (defvar *decode* nil)
 
 (defun main()
-
+  (setf *plainfile* "plain.bmp")
+  (setf *ciperfile* "ciper.bmp")
+  (setf *defile* "de.bmp")
   (setf *x0* 0.301000)
   (setf *alpha* 3.5946)
   (setf *decode* nil)
   (format t "Encryption~%")
-  (encry)
+  (bmp-encry)
   (setf *decode* T)
   (format t "De-cryption~%")
-  (encry)
+  (bmp-encry)
   (format t "Complete "))
 
-(defun encry ()
+(defun bmp-encry ()
   ;encryption the file
   (setf *xn* *x0*)
-  (defvar content)
-  (setf content "")
+  (defvar content nil)
   (if *decode*
-      (setf content (read-txt *ciperfile*))
-      (setf content (read-txt *plainfile*)))
-  (format t "~a ~%" content)
+      (setf content (read-bmp *ciperfile*))
+      (setf content (read-bmp *plainfile*)))
   (defvar M 2000)
   (loop for i from 1 to M
        do( loop-next ))
@@ -35,19 +35,31 @@
       (setf curfile *defile*)
       (setf curfile *ciperfile*))
   (with-open-file (stream curfile :direction :output
+                          :element-type '(unsigned-byte 8)
                           :if-exists :supersede)
-    (loop for ciperchar in (coerce content 'list)
+    (loop for ciperbyte in content
+       ;for temp from 1 to (* 1000 1000)
        do
-         ;(format t "~a" ciperchar)
+         (format t "~a" ciperbyte)
          (defvar x1*)
          (setf x1* (mod (f246 *xn*) 256))
          ;(format t "xn: ~a  f246: ~a~%" *xn* (f246 *xn*) )
-         (format stream "~a" (code-char
-                          (int-int-xor x1*
-                                       (char-int
-                                        ciperchar))))
+         (write-byte (int-int-xor x1* ciperbyte) stream))
          (loop-next)))
-  (format t "~%"))
+
+
+(defun read-bmp(filename)
+  (defvar byte-list nil)
+  (let* ((in (open filename :element-type '(unsigned-byte 8)
+                   :if-does-not-exist nil)))
+     (when in
+       (loop for byte = (read-byte in nil)
+          while byte do
+            (push byte byte-list)
+           )
+       (close in))
+     byte-list)
+)
 
 (defun int-int-xor (a b)
   ;(format t "a:~a b:~a~%" a b)
@@ -96,17 +108,5 @@
 (defun loop-next()
   ;logstic next value
   (setf *xn* (* *xn* *alpha* (- 1 *xn*)))
-  ;(format t "~a " *xn*)
   )
 
-(defun read-txt(filename)
-  ;read file content
-  (defvar content "")
-  (let* ((in (open filename :if-does-not-exist nil)))
-     (when in
-       (loop for line = (read-line in nil)
-          while line do 
-            (setf content
-                  (concatenate 'string content line)))
-       (close in)))
-  content)
