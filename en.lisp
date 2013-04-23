@@ -3,13 +3,18 @@
 (defvar *xn*)  ;n: 0,1,2,...
 (defvar *plainfile* "data.txt")
 (defvar *ciperfile* "ciper.txt")
-(defvar *plainfile2* "de.txt")
+(defvar *defile* "de.txt")
 (defvar *decode* nil)
 
 (defun main()
-  (setf *decode* T)
+
   (setf *x0* 0.301000)
   (setf *alpha* 3.5946)
+  (setf *decode* nil)
+  (format t "Encryption~%")
+  (encry)
+  (setf *decode* T)
+  (format t "De-cryption~%")
   (encry)
   (format t "Complete "))
 
@@ -27,7 +32,7 @@
        do( loop-next ))
   (defvar curfile *ciperfile*)
   (if *decode*
-      (setf curfile *plainfile2*)
+      (setf curfile *defile*)
       (setf curfile *ciperfile*))
   (with-open-file (stream curfile :direction :output
                           :if-exists :supersede)
@@ -37,7 +42,7 @@
          (defvar x1*)
          (setf x1* (mod (f246 *xn*) 256))
          ;(format t "xn: ~a  f246: ~a~%" *xn* (f246 *xn*) )
-         (format stream "~a " (code-char
+         (format stream "~a" (code-char
                           (int-int-xor x1*
                                        (char-int
                                         ciperchar))))
