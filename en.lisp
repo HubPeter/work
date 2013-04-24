@@ -37,6 +37,7 @@
   (with-open-file (stream curfile :direction :output
                           :element-type '(unsigned-byte 8)
                           :if-exists :supersede)
+    (defvar i 0)
     (loop for ciperbyte in content
        ;for temp from 1 to (* 1000 1000)
        do
@@ -44,9 +45,12 @@
          (defvar x1*)
          (setf x1* (mod (f246 *xn*) 256))
          ;(format t "xn: ~a  f246: ~a~%" *xn* (f246 *xn*) )
-         (write-byte (int-int-xor x1* ciperbyte) stream))
-         (loop-next)))
-
+         (if (< i 54)
+             (write-byte ciperbyte stream)
+             (write-byte (int-int-xor x1* ciperbyte) stream))
+         (incf i)
+         )
+    (loop-next)))
 
 (defun read-bmp(filename)
   (defvar byte-list nil)
