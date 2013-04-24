@@ -17,7 +17,8 @@
   (bmp-encry)
   (setf *decode* T)
   (format t "De-cryption~%")
-  (bmp-encry))
+  (bmp-encry)
+  (format t "Complete "))
 
 (defun bmp-encry ()
   ;encryption the file
@@ -37,11 +38,15 @@
                           :element-type '(unsigned-byte 8)
                           :if-exists :supersede)
     (loop for ciperbyte in content
+       ;for temp from 1 to (* 1000 1000)
        do
+         (format t "~a" ciperbyte)
          (defvar x1*)
          (setf x1* (mod (f246 *xn*) 256))
-         (write-byte (int-int-xor x1* ciperbyte) stream)
-         (loop-next))))
+         ;(format t "xn: ~a  f246: ~a~%" *xn* (f246 *xn*) )
+         (write-byte (int-int-xor x1* ciperbyte) stream))
+         (loop-next)))
+
 
 (defun read-bmp(filename)
   (defvar byte-list nil)
