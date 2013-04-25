@@ -72,47 +72,6 @@
           do(push byte byte-final))
      byte-final)
 )
-(defun expand-byte(byte)
-  (bit-vector->integer
-   (expand-bit-array
-    (integer->bit-vector byte))))
-(defun int-int-xor (a b)
-  ;(format t "a:~a b:~a~%" a b)
-  (bit-vector->integer
-   (bit-xor ( adjust-array (integer->bit-vector a) 8 :element-type 'bit)
-            ( adjust-array (integer->bit-vector b) 8 :element-type 'bit) )))
-
-(defun expand-bit-array(elm)
-  ;(format t "bit array length: ~a~%" (length elm))
-  (setf newa (make-array 8 :element-type 'bit :fill-pointer
-                         (- 8 (length elm))))
-  ;(format t "elm:~a~%" elm)
-  (loop for i from 0 to (- (length elm) 1)
-     do
-       (vector-push (aref elm i) newa)
-       ;(format t "~a newa: ~a insert ~a: ~a~%"
-               ;elm newa i (aref elm i)))
-  ;(format t "type of newa : ~a~%" (type-of newa))
-       )
-  newa
-  )
-
-(defun bit-vector->integer (bit-vector)
-  "Create a positive integer from a bit-vector."
-  (reduce #'(lambda (first-bit second-bit)
-              (+ (* first-bit 2) second-bit))
-          bit-vector))
-
-(defun integer->bit-vector (integer)
-  "Create a bit-vector from a positive integer."
-  (labels ((integer->bit-list (int &optional accum)
-             (cond ((> int 0)
-                    (multiple-value-bind (i r)
-                        (truncate int 2)
-                      (integer->bit-list i (push r accum))))
-                   ((null accum) (push 0 accum))
-                   (t accum))))
-    (coerce (integer->bit-list integer) 'bit-vector)))
 
 (defun f246(xi)
   (+ (* (truncate (mod (* xi 100) 10)) 100) ;2
