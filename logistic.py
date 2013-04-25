@@ -14,6 +14,7 @@ xa = -0.5; xb = 1.5
 ya = -1.0; yb = 1.0
 zEsc = 1000
 r = random.random() + 3.0
+#get init key
 def f(z):
     for i in range(maxIt):
         z = r * z * (1.0 - z)

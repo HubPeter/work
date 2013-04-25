@@ -1,75 +1,88 @@
-(defvar *x0*) ; xn: (0, 1) 
-(defvar *alpha*) ; alpha: 3.5699456<u<=4,0<Xi<1
-(defvar *xn*)  ;n: 0,1,2,...
-(defvar *plainfile*)
-(defvar *ciperfile*)
-(defvar *defile*)
-(defvar *decode* nil)
+(defvar *x0* 0.3010198)  ; xn: (0, 1) 
+(defvar *alpha* 3.5946) ; alpha: 3.5699456<u<=4,0<Xi<1
+(defvar *plainfile* "plain.bmp")
+(defvar *ciperfile* "ciper.bmp")
+(defvar *defile* "de.bmp")
+(defvar *decode*)
+(defvar *xn*)
 
 (defun main()
-  (setf *plainfile* "plain.bmp")
-  (setf *ciperfile* "ciper.bmp")
-  (setf *defile* "de.bmp")
-  (setf *x0* 0.301000)
-  (setf *alpha* 3.5946)
   (setf *decode* nil)
   (format t "Encryption~%")
   (bmp-encry)
   (setf *decode* T)
   (format t "De-cryption~%")
   (bmp-encry)
-  (format t "Complete "))
+  (format t "Complete ")
+  )
 
 (defun bmp-encry ()
   ;encryption the file
   (setf *xn* *x0*)
-  (defvar content nil)
-  (if *decode*
-      (setf content (read-bmp *ciperfile*))
-      (setf content (read-bmp *plainfile*)))
-  (defvar M 2000)
-  (loop for i from 1 to M
+  (format t "*Xn* ~a *x0* ~a~%" *xn* *x0*)
+  (let* ((content nil)
+         (curfile *ciperfile*) )
+    (if *decode*
+        (setf content (read-bmp *ciperfile*))
+        (setf content (read-bmp *plainfile*)))
+    ;(format t "bytes read: ~a~%" (length content))
+    (loop for i from 1 to 2000
        do( loop-next ))
-  (defvar curfile *ciperfile*)
-  (if *decode*
-      (setf curfile *defile*)
-      (setf curfile *ciperfile*))
-  (with-open-file (stream curfile :direction :output
-                          :element-type '(unsigned-byte 8)
-                          :if-exists :supersede)
-    (defvar i 0)
-    (loop for ciperbyte in content
-       ;for temp from 1 to (* 1000 1000)
-       do
-         (format t "~a" ciperbyte)
-         (defvar x1*)
-         (setf x1* (mod (f246 *xn*) 256))
-         ;(format t "xn: ~a  f246: ~a~%" *xn* (f246 *xn*) )
-         (if (< i 54)
-             (write-byte ciperbyte stream)
-             (write-byte (int-int-xor x1* ciperbyte) stream))
-         (incf i)
-         )
-    (loop-next)))
+    (if *decode*
+        (setf curfile *defile*)
+        (setf curfile *ciperfile*))
+    (with-open-file (stream curfile :direction :output
+                            :element-type '(unsigned-byte 8)
+                            :if-exists :supersede)
+      (let* ((i 0) (x1* 0))
+        (loop for ciperbyte in content
+           do
+             (loop-next)
+             (setf x1* (mod (f246 *xn*) 256))
+                                        ;(if (< i 54)
+                                        ;    (progn
+                                        ;      (write-byte (expand-byte ciperbyte) stream)
+                                        ;      (format t "~a --> ~a ~%" ciperbyte (expand-byte ciperbyte))
+                                        ;      )
+             (write-byte (boole boole-xor x1* ciperbyte) stream)
+             (if (< i 4)
+                 (format t "plainbyte ~a ciperbyte ~a ~%" ciperbyte (boole boole-xor x1* ciperbyte)))
+                                        ;    )
+             (incf i)
+             )
+        )
+      )
+    )
+  )
 
 (defun read-bmp(filename)
-  (defvar byte-list nil)
   (let* ((in (open filename :element-type '(unsigned-byte 8)
-                   :if-does-not-exist nil)))
+                   :if-does-not-exist nil))
+         (byte-list nil)
+         (byte-final nil)
+         (i 0))
      (when in
        (loop for byte = (read-byte in nil)
           while byte do
             (push byte byte-list)
+            (if (< i 4)
+                (format t "byte: ~a ~%" byte))
+            (incf i)
            )
        (close in))
-     byte-list)
+     (loop for byte in byte-list
+          do(push byte byte-final))
+     byte-final)
 )
-
+(defun expand-byte(byte)
+  (bit-vector->integer
+   (expand-bit-array
+    (integer->bit-vector byte))))
 (defun int-int-xor (a b)
   ;(format t "a:~a b:~a~%" a b)
-  (bit-vector->integer 
-   (bit-xor ( expand-bit-array (integer->bit-vector a))
-            ( expand-bit-array (integer->bit-vector b)) )))
+  (bit-vector->integer
+   (bit-xor ( adjust-array (integer->bit-vector a) 8 :element-type 'bit)
+            ( adjust-array (integer->bit-vector b) 8 :element-type 'bit) )))
 
 (defun expand-bit-array(elm)
   ;(format t "bit array length: ~a~%" (length elm))
@@ -96,7 +109,7 @@
   "Create a bit-vector from a positive integer."
   (labels ((integer->bit-list (int &optional accum)
              (cond ((> int 0)
-                    (multiple-value-bind (i r) 
+                    (multiple-value-bind (i r)
                         (truncate int 2)
                       (integer->bit-list i (push r accum))))
                    ((null accum) (push 0 accum))
@@ -104,9 +117,9 @@
     (coerce (integer->bit-list integer) 'bit-vector)))
 
 (defun f246(xi)
-  (+ (* (truncate (mod (* xi 10000) 10)) 100) ;4
-     (* (truncate (mod (* xi 100000) 10)) 10) ;5
-     (* (truncate (mod (* xi 1000000) 10)) 1) ;6
+  (+ (* (truncate (mod (* xi 100) 10)) 100) ;2
+     (* (truncate (mod (* xi 1000) 10)) 10) ;3
+     (* (truncate (mod (* xi 10000) 10)) 1) ;4
      ))
     
 (defun loop-next()
