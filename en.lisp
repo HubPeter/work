@@ -34,21 +34,19 @@
     (with-open-file (stream curfile :direction :output
                             :element-type '(unsigned-byte 8)
                             :if-exists :supersede)
-      (let* ((i 0) (x1* 0))
+      (let* ((x1* 0))
         (loop for ciperbyte in content
+             for i from 0 to (* 1366 768)
            do
              (loop-next)
              (setf x1* (mod (f246 *xn*) 256))
-                                        ;(if (< i 54)
-                                        ;    (progn
-                                        ;      (write-byte (expand-byte ciperbyte) stream)
-                                        ;      (format t "~a --> ~a ~%" ciperbyte (expand-byte ciperbyte))
-                                        ;      )
-             (write-byte (boole boole-xor x1* ciperbyte) stream)
-             (if (< i 4)
-                 (format t "plainbyte ~a ciperbyte ~a ~%" ciperbyte (boole boole-xor x1* ciperbyte)))
-                                        ;    )
-             (incf i)
+             (if (< i 54)
+                 (progn 
+                   (write-byte ciperbyte stream)
+                   (format t "i: ~a ~a ~% " i ciperbyte)
+                   )
+                 (write-byte (boole boole-xor x1* ciperbyte) stream)
+                 )
              )
         )
       )
