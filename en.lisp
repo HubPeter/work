@@ -28,7 +28,6 @@
     ;(format t "bytes read: ~a~%" (length content))
     (loop for i from 1 to 2000
        do( loop-next ))
-
     (if *decode*
         (setf curfile *defile*)
         (setf curfile *ciperfile*))
