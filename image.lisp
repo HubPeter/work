@@ -1,5 +1,7 @@
-(defpackage #:impatient (:use #:cl #:opticl))
-(in-package #:impatient)
+(ql:quickload 'opticl)
+(use-package 'opticl)
+
+(format t "hello go")
 
 (let ((img (read-jpeg-file "p_girl.jpg")))
   (typecase img
