@@ -5,7 +5,7 @@
 (defvar *alpha* 3.5946)             ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *topM* 10)                  ; top M in [0, 255]
 (defvar *N* 1024)
-(defvar *xn*)
+(defvar *xn* *x0*)
 (defvar *MAX-itrs*)                 ; max length of search mode
 
 (defun main()
@@ -29,23 +29,36 @@
                       )
                      )
     )
-  )
+  )o
 
 
 (defun pix-list-encrypt(pix-list)
   (let (
-        (v-p-array (make-sequence 'list 256 :initial-element '0))
+        (v-p-array nil)
         (field-pixvalue-map (make-array *N*))
         (mask-seq nil);masking swquence used in step-5
         (int-seq nil);intermediate swquence
+        (temp-list nil)
+        (encoded-int-seq-cleared nil)
         )
                                         ;step 1: scan and sort desc
-    (loop for value in pix-list         
-       do
-         (setf (elt v-p-array value) (+ 1 (elt v-p-array value)))
-         )
-    (setf v-p-array (sort v-p-array '> ))
+    (setf v-p-array (scan-sort-desc pix-list))
                                         ;step 2: map pixvalue on phase space
+    (setf field-pixvalue-map (map-pixvalue-on-phase-space field-pixvalue-map v-p-array))
+                                        ;(format t "v-p-array:~%~a~% field-pixvalue-map:~%~a~%" v-p-array field-pixvalue-map)
+    (return-from pix-list-encrypt)
+                                        ;step 3: encrypt each plain text
+    (setf temp-list (encrypt-plain-text pix-list v-p-array field-pixvalue-map))
+    (setf mask-seq (nth 0 temp-list))
+    (setf int-seq (nth 1 temp-list))
+    (return-from pix-list-encrypt)
+                                        ;step 4: Huffman tree from int-seq
+    (setf encoded-int-seq-cleared (huf-encode int-seq))
+    )
+  )
+
+
+(defun map-pixvalue-on-phase-space(field-pixvalue-map v-p-array)
     (let (
           (sum-topM (cal-topm-sum v-p-array *topM*))
           (partion-begin 0)
@@ -54,6 +67,7 @@
            do
            (let* ((partion-number
                    (+ 1 (truncate (/ (* *N* (elt v-p-array j)) sum-topM) ))))
+             ;(format t "sum-topM ~a ~%" sum-topM)
              (loop for partion from partion-begin to
                   (min 1023 (+ -1  partion-begin partion-number))
                 do
@@ -64,60 +78,129 @@
              (setf partion-number (+ 1 (truncate (/ (* *N* (elt v-p-array j)) sum-topM))))
              )
            )
-                                        ;(format t "v-p-array:~%~a~% field-pixvalue-map:~%~a~%" v-p-array field-pixvalue-map)
-                                        ;step 3: encrypt each plain text
-      (loop for pix-value in pix-list 
-           do
-           (if (if-in-topM v-p-array *topM* pix-value)
-               (progn
-                                        ;---find length of iteration to target field
-                 (let ((itr-length (loop-to-target field-pixvalue-map pix-value)))
-                   (if itr-length
-                                       
-                       (progn           
-                                        ;------search mode
-                         (append (list itr-length) int-seq);append itr-length to int-seq
-                         )
-                       )
-                   )
-                 )
-               (progn
-                                        ;------mask mode
-                 (loop-next);iterate logistic map once
-                 (append (least-8-bits *xn*) mask-seq);append 8 bit mask bits gen from *xn* to mask-seq
-                 (append (list 0 pix-value) int-seq);append h0:0 and pix-value to int-seq
-                 )
-               )
-           )
-                                        ;step 4: Huffman tree from int-seq
-      (let ((int-seq-cleared nil)
-            (huf-tree nil)
-            (encoded-int-seq-cleared nil)
-            )
-                                        ;remove symbols from int-seq
-        (loop for i below (- (length int-seq) 1)
-             do
-             (let ((item (nth i int-seq))
-                   (next-item (nth (+ i 1) int-seq))
-                   )
-               (append item int-seq-cleared)
-               (if (= item 0)
-                   (incf i))
-               )
-             )
-        (setf huf-tree (huffman-codes int-seq-cleared));build huf-tree
-        (loop for i below (length int-seq-cleared) ;code int-seq with huf-tree
-             do
-             (append encoded-int-seq-cleared
-                   (huffman-node-encoding (nth int-seq-cleared i)))
-             )
-        )
+      field-pixvalue-map
       )
+  )
+
+
+(defun scan-sort-desc(pix-list)
+  (let* (
+         ;(v-p-array (make-sequence 'list 256 :initial-element (list 0 0)))
+         (v-p-array nil)
+        )
+    (loop for i below 256
+       do
+         (push `(0 ,i) v-p-array)
+         )
+    (setf v-p-array (rev v-p-array))
+    (loop for value in pix-list
+       do
+         (incf (elt (elt  v-p-array value) 0))
+         )
+    (setf v-p-array (sort v-p-array #'> :key #'car))
+    v-p-array
     )
   )
 
+
+(defun encrypt-plain-text(pix-list v-p-array field-pixvalue-map)
+  #|(format t "~a ~a ~a"(length pix-list)
+  (length v-p-array)
+  (length field-pixvalue-map))|#
+  (let ((mask-seq nil)
+        (int-seq nil))
+    (format t "~a~%~%" v-p-array)
+    (loop for pix-value in pix-list
+       do
+         (if (if-in-topM v-p-array *topM* pix-value)
+             (progn
+                                        ;---find length of iteration to target field
+               ;(format t "~a in topM~%" pix-value)
+               (let ((itr-length (loop-to-target field-pixvalue-map pix-value)))
+                 (if itr-length
+                     
+                     (progn           
+                                        ;------search mode
+                       (append (list itr-length) int-seq);append itr-length to int-seq
+                       )
+                     )
+                 )
+               )
+             (progn
+                                        ;------mask mode
+               ;(format t "~a not in topM~%" pix-value)
+               (loop-next);iterate logistic map once
+               (append (least-8-bits *xn*) mask-seq);append 8 bit mask bits gen from *xn* to mask-seq
+               (append (list 0 pix-value) int-seq);append h0:0 and pix-value to int-seq
+               )
+             )
+         
+         )
+    ;(format t "mask-seq~%~a~%" mask-seq)
+    ;(format t "int-seq~%~a~%" int-seq)
+    (list mask-seq int-seq)
+    )
+  )
+(defun if-in-topM( v-p-array top-n pix-value)
+  (loop for i below top-n
+     do
+       (if (= (elt v-p-array i) pix-value)
+           (progn
+             (format t "Bang index: ~a value:~a~%" i pix-value)
+             (return T))
+           ))
+  nil
+  )
+
+(defun huf-encode(int-seq)
+  (let ((int-seq-cleared nil)
+        (huf-tree nil)
+        (encoded-int-seq-cleared nil)
+        )
+                                        ;remove symbols from int-seq
+    (loop for i below (- (length int-seq) 1)
+       do
+         (let ((item (nth i int-seq))
+               (next-item (nth (+ i 1) int-seq))
+               )
+           (append item int-seq-cleared)
+           (if (= item 0)
+               (incf i))
+           )
+         )
+    (setf huf-tree (huffman-codes int-seq-cleared));build huf-tree
+    (loop for i below (length int-seq-cleared) ;code int-seq with huf-tree
+       do
+         (append encoded-int-seq-cleared
+                 (huffman-node-encoding (nth int-seq-cleared i)))
+         )
+    encoded-int-seq-cleared
+    )
+  )
+
+(defun test-fun()
+  (let ((i 0)
+        (j 0)
+        (temp-list nil)
+        )
+    
+    (setf temp-list (func i j))
+    (setf i (nth 0 temp-list))
+    (setf j (nth 1 temp-list))
+    (format t "~a ~a" i j)
+    )
+  )
+(defun func (i j)
+  (incf i)
+  (incf j)
+  (list i j)
+  )
+
+
+
 (defun least-8-bits(x)
   ;return least 8 bits of x in list form
+  (list #*11111111)
   )
 
 (defun loop-to-target(field-pixvalue-map pix-value);return length or nil if bigger than *MAX-len*
@@ -128,25 +211,24 @@
                                         ;chaotic map output x
   
   )
-(defun if-in-topM( v-p-array top-n pix-value)
-  (loop for i below top-n
-     do
-       (if (= (elt v-p-array i) pix-value)
-           (return T))))
 
 (defun cal-topm-sum(v-p-array topM)
   (let ((sum 0))
     (loop for i below topM
-         summing (elt v-p-array i) into sum
-         finally (return sum)
+       summing (elt v-p-array i) into sum
+       finally (return sum)
          )
     )
   )
 
 (defun test()
+
+
   (let (
         (rgb-list (get-RGB-pix-list "/home/w/wk/work/p_girl.jpg"))
         )
+    (pix-list-encrypt (nth 0 rgb-list))
+    (return-from test)
     (combine-pix-list (pix-list-encrypt (nth 0 rgb-list))
                       (pix-list-encrypt (nth 1 rgb-list))
                       (pix-list-encrypt (nth 2 rgb-list)))
