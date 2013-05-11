@@ -1,5 +1,6 @@
 (ql:quickload "opticl")
 (use-package :opticl)
+(load "huf.lisp")
 (defvar *x0* 0.3010198)             ; xn: (0, 1)
 (defvar *alpha* 3.5946)             ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *topM* 10)                  ; top M in [0, 255]
@@ -26,7 +27,7 @@
   (let* ((RGB-pix-list nil))
     (setf RGB-pix-list (get-RGB-pix-list plainimage))
     (gen-ciper-image plainimage ciperimage
-                     (combine-pix-list 
+                     (combine-pix-list
                       (pix-list-encrypt (nth 0 rgb-pix-list))
                       (pix-list-encrypt (nth 1 rgb-pix-list))
                       (pix-list-encrypt (nth 2 rgb-pix-list))
@@ -36,35 +37,125 @@
   )
 ;; int-seq gen here
 (defun pix-list-encrypt(pix-list)
-  (let (
-        (v-p-array nil)
+  (let ((v-p-array nil)
         (field-pixvalue-map (make-array *N*))
         (mask-seq nil);masking swquence used in step-5
         (int-seq nil);intermediate swquence
-        (temp-list nil)
-        (encoded-int-seq-cleared nil)
-        )
+        (encoded-int-seq-cleared nil))
     ;;step 1: scan and sort desc
     (setf v-p-array (scan-sort-desc pix-list))
     ;;step 2: map pixvalue on phase space
     (setf field-pixvalue-map (map-pixvalue-on-phase-space v-p-array))
     ;;step 3: encrypt each plain text
     (multiple-value-bind (mask-seq int-seq)
-        (encrypt-plain-text pix-list v-p-array field-pixvalue-map))
-    ;;step 4: Huffman tree from int-seq
-    (return-from pix-list-encrypt)
-    (setf encoded-int-seq-cleared (huf-encode int-seq))
+        (encrypt-plain-text pix-list v-p-array field-pixvalue-map)
+      ;;step 4: Huffman tree from int-seq
+      (setf encoded-int-seq-cleared (huf-encode int-seq))
+      encoded-int-seq-cleared
+      )))
+
+(defun huf-encode(int-seq)
+  (let ((int-seq-cleared 
+         (make-array 0 :element-type 'INTEGER
+                     :fill-pointer 0
+                     :adjustable t
+                     :initial-element 0))
+        (huf-tree (make-hash-table))
+        (encoded-int-seq-cleared 
+         (make-array 0 :element-type 'INTEGER
+                     :fill-pointer 0
+                     :adjustable t
+                     :initial-element 0)))
+    ;;remove symbols from int-seq
+    (loop for i below (- (length int-seq) 1)
+       do
+         (let ((item (elt int-seq i)))
+           (vector-push-extend item int-seq-cleared)
+           (if (= item 0)
+               (incf i))))
+    (setf huf-tree (huffman-codes int-seq-cleared));build huf-tree
+    ;;code int-seq with huf-tree
+    (loop for i below (length int-seq-cleared)
+       do
+         (vector-push-extend
+          (huffman-node-encoding
+           (gethash (elt int-seq-cleared i) huf-tree))
+          encoded-int-seq-cleared))
+    encoded-int-seq-cleared))
+(defun huffman-codes (sequence &key (test 'eql))
+  (multiple-value-bind
+        (nodes tree)
+      (huffman-tree sequence :test test)
+    (labels ((hc (node length bits)
+               (let ((left (huffman-node-left node))
+                     (right (huffman-node-right node)))
+                 (cond
+                   ((and (null left) (null right))
+                    (setf (huffman-node-encoding node)
+                          (make-array length :element-type 'bit
+                                      :initial-contents
+                                      (reverse bits))))
+                   (t (hc left (1+ length) (list* 0 bits))
+                      (hc right (1+ length) (list* 1 bits)))))))
+      (hc tree 0 '())
+      nodes)
     )
   )
+
+;;;Huffman tree code
+(defstruct huffman-node
+  (weight 0 :type number)
+  (element nil :type t)
+  (encoding nil :type (or null bit-vector))
+  (left nil :type (or null huffman-node))
+  (right nil :type (or null huffman-node)))
+ 
+(defun initial-huffman-nodes (sequence &key (test 'eql))
+  (let* ((length (length sequence))
+         (increment (/ 1 length))
+         (nodes (make-hash-table :size length :test test))
+         (queue '()))
+    (map nil #'(lambda (element)
+                 (multiple-value-bind 
+                       (node presentp) (gethash element nodes)
+                   (if presentp
+                     (incf (huffman-node-weight node) increment)
+                     (let ((node (make-huffman-node :weight increment
+                                                    :element element)))
+                       (setf (gethash element nodes) node
+                             queue (list* node queue))))))
+         sequence)
+    (values nodes (sort queue '< :key 'huffman-node-weight))))
+ 
+(defun huffman-tree (sequence &key (test 'eql))
+  (multiple-value-bind (nodes queue)
+      (initial-huffman-nodes sequence :test test)
+    (do () ((endp (rest queue)) (values nodes (first queue)))
+      (destructuring-bind (n1 n2 &rest queue-rest) queue
+        (let ((n3 (make-huffman-node
+                   :left n1
+                   :right n2
+                   :weight (+ (huffman-node-weight n1)
+                              (huffman-node-weight n2)))))
+          (setf queue (merge 'list (list n3) queue-rest '<
+                             :key 'huffman-node-weight)))))))1
+ 
+(defun print-huffman-code-table (nodes &optional (out *standard-output*))
+  (format out "~&Element~10tWeight~20tCode")
+  (loop for node being each hash-value of nodes
+        do (format out "~&~s~10t~s~20t~s"
+                   (huffman-node-element node)
+                   (huffman-node-weight node)
+                   (huffman-node-encoding node))))
 
 (defun encrypt-plain-text(pix-list v-p-array field-pixvalue-map)
   (let ((mask-seq (make-array 0 :element-type 'bit
                              :initial-element 0
-                             :fill-pointer 0 
+                             :fill-pointer 0
                              :adjustable t))
         (int-seq (make-array 0 :element-type 'INTEGER
                              :initial-element 0
-                             :fill-pointer 0 
+                             :fill-pointer 0
                              :adjustable t)))
     (loop for pix-value across pix-list
        do
@@ -77,25 +168,17 @@
                      (progn
                        ;;------search mode
                        ;;append itr-length to int-seq
-                       (vector-push-extend itr-length int-seq)
-                       )
-                     )
-                 )
-               )
+                       (vector-push-extend itr-length int-seq)))))
              (progn
                ;;------mask mode
                (logistic-map);iterate logistic map once
                ;;append 8 bit mask bits gen from *xn* to mask-seq
                (loop for bit in (least-8-bits *xn*)
                     do (vector-push-extend bit mask-seq))
+               ;; the plaintext is directly outputed
                ;;append h0:0 and pix-value to int-seq
-               (vector-push-extend (values 0 pix-value) int-seq)
-               )
-             )
-         )
-    (values mask-seq int-seq)
-    )
-  )
+               (vector-push-extend (values 0 pix-value) int-seq))))
+    (values mask-seq int-seq)))
 
 (defun loop-to-target(field-pixvalue-map pix-value)
    ;;;return length or nil if bigger than *MAX-len*
@@ -160,96 +243,6 @@
   nil
   )
 
-(defun huf-encode(int-seq)
-  (let ((int-seq-cleared nil)
-        (huf-tree nil)
-        (encoded-int-seq-cleared nil)
-        )
-                                        ;remove symbols from int-seq
-    (loop for i below (- (length int-seq) 1)
-       do
-         (let ((item (nth i int-seq))
-               (next-item (nth (+ i 1) int-seq))
-               )
-           (append item int-seq-cleared)
-           (if (= item 0)
-               (incf i))
-           )
-         )
-
-    (setf huf-tree (huffman-codes int-seq-cleared));build huf-tree
-    (format t "Code int-seq with huffman tree ...~%")
-    (loop for i below (length int-seq-cleared) ;code int-seq with huf-tree
-       do
-         (append encoded-int-seq-cleared
-                 (huffman-node-encoding (nth int-seq-cleared i)))
-         )
-    encoded-int-seq-cleared
-    )
-  )
-
-(defun huffman-codes (sequence &key (test 'eql))
-  (multiple-value-bind (nodes tree)
-      (huffman-tree sequence :test test)
-    (labels ((hc (node length bits)
-               (let ((left (huffman-node-left node))
-                     (right (huffman-node-right node)))
-                 (cond
-                  ((and (null left) (null right))
-                   (setf (huffman-node-encoding node)
-                         (make-array length :element-type 'bit
-                                     :initial-contents (reverse bits))))
-                  (t (hc left (1+ length) (list* 0 bits))
-                     (hc right (1+ length) (list* 1 bits)))))))
-      (hc tree 0 '())
-      nodes)))
-
-;;;Huffman tree code
-(defstruct huffman-node
-  (weight 0 :type number)
-  (element nil :type t)
-  (encoding nil :type (or null bit-vector))
-  (left nil :type (or null huffman-node))
-  (right nil :type (or null huffman-node)))
- 
-(defun initial-huffman-nodes (sequence &key (test 'eql))
-  (let* ((length (length sequence))
-         (increment (/ 1 length))
-         (nodes (make-hash-table :size length :test test))
-         (queue '()))
-    (map nil #'(lambda (element)
-                 (multiple-value-bind 
-                       (node presentp) (gethash element nodes)
-                   (if presentp
-                     (incf (huffman-node-weight node) increment)
-                     (let ((node (make-huffman-node :weight increment
-                                                    :element element)))
-                       (setf (gethash element nodes) node
-                             queue (list* node queue))))))
-         sequence)
-    (values nodes (sort queue '< :key 'huffman-node-weight))))
- 
-(defun huffman-tree (sequence &key (test 'eql))
-  (multiple-value-bind (nodes queue)
-      (initial-huffman-nodes sequence :test test)
-    (do () ((endp (rest queue)) (values nodes (first queue)))
-      (destructuring-bind (n1 n2 &rest queue-rest) queue
-        (let ((n3 (make-huffman-node
-                   :left n1
-                   :right n2
-                   :weight (+ (huffman-node-weight n1)
-                              (huffman-node-weight n2)))))
-          (setf queue (merge 'list (list n3) queue-rest '<
-                             :key 'huffman-node-weight)))))))1
- 
-
-(defun print-huffman-code-table (nodes &optional (out *standard-output*))
-  (format out "~&Element~10tWeight~20tCode")
-  (loop for node being each hash-value of nodes
-        do (format out "~&~s~10t~s~20t~s"
-                   (huffman-node-element node)
-                   (huffman-node-weight node)
-                   (huffman-node-encoding node))))
 
 (defun map-pixvalue-on-phase-space(v-p-array)
     (let (
