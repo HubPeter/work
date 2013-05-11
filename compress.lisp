@@ -5,33 +5,36 @@
 (defvar *topM* 10)                  ; top M in [0, 255]
 (defvar *N* 1024)
 (defvar *xn* *x0*)
-(defvar *MAX-itrs* 10)                 ; max length of search mode
+(defvar *MAX-itrs* 128)                 ; max length of search mode
 
 (defun main()
   (initvar)
-  (format t "Encryption....~%")
-  (encrypt "p_hub.jpg" "c_hub.jpg")
-  (format t "De cryption......~%")
-  (decrypt "c_girl.jpg" "de_girl.jpg")
+  (FORMAT T "ENCRYPTION....~%")
+  (ENCRYPT "P_HUB.JPG" "C_HUB.JPG")
+  (FORMAT T "DE CRYPTION......~%")
+  (DECRYPT "C_GIRL.JPG" "DE_GIRL.JPG")
   )
-(defun initvar()
-  (setf *xn* *x0*))
+(DEFUN INITVAR()
+  (SETF *XN* *X0*)
+  ;;(FORMAT T "INIT..~%*XN* ~A~%" *XN*)
+  )
 
-(defun encrypt (plainimage ciperimage)
-                                        ;symbol number <sort desc>  M symbols
-                                        ;divid phase space into N and get codebook
-  (setf *xn* *x0*)
+(DEFUN ENCRYPT (PLAINIMAGE CIPERIMAGE)
+  ;;SYMBOL NUMBER <SORT DESC>  M SYMBOLS
+  ;;DIVID PHASE SPACE INTO N AND GET CODEBOOK
+  (SETF *XN* *X0*)
   (let* ((RGB-pix-list nil))
     (setf RGB-pix-list (get-RGB-pix-list plainimage))
     (gen-ciper-image plainimage ciperimage
-                     (combine-pix-list (pix-list-encrypt (nth 0 rgb-pix-list))
-                                       (pix-list-encrypt (nth 1 rgb-pix-list))
-                                       (pix-list-encrypt (nth 2 rgb-pix-list))
+                     (combine-pix-list 
+                      (pix-list-encrypt (nth 0 rgb-pix-list))
+                      (pix-list-encrypt (nth 1 rgb-pix-list))
+                      (pix-list-encrypt (nth 2 rgb-pix-list))
                       )
                      )
     )
   )
-;;; int-seq gen here
+;; int-seq gen here
 (defun pix-list-encrypt(pix-list)
   (let (
         (v-p-array nil)
@@ -41,75 +44,86 @@
         (temp-list nil)
         (encoded-int-seq-cleared nil)
         )
-                                        ;step 1: scan and sort desc
+    ;;step 1: scan and sort desc
     (setf v-p-array (scan-sort-desc pix-list))
-                                        ;step 2: map pixvalue on phase space
+    ;;step 2: map pixvalue on phase space
     (setf field-pixvalue-map (map-pixvalue-on-phase-space v-p-array))
-                                        ;step 3: encrypt each plain text
+    ;;step 3: encrypt each plain text
     (multiple-value-bind (mask-seq int-seq)
         (encrypt-plain-text pix-list v-p-array field-pixvalue-map))
-                                        ;step 4: Huffman tree from int-seq
+    ;;step 4: Huffman tree from int-seq
     (return-from pix-list-encrypt)
     (setf encoded-int-seq-cleared (huf-encode int-seq))
     )
   )
 
 (defun encrypt-plain-text(pix-list v-p-array field-pixvalue-map)
-  (format t "~%................~%")
-  (format t "~a ~a ~a"(length pix-list)
-          (length v-p-array)
-          (length field-pixvalue-map))
-  (let ((mask-seq nil)
-        (int-seq nil))
-    (loop for pix-value in pix-list
+  (let ((mask-seq (make-array 0 :element-type 'bit
+                             :initial-element 0
+                             :fill-pointer 0 
+                             :adjustable t))
+        (int-seq (make-array 0 :element-type 'INTEGER
+                             :initial-element 0
+                             :fill-pointer 0 
+                             :adjustable t)))
+    (loop for pix-value across pix-list
        do
          (if (if-in-topM v-p-array *topM* pix-value)
              (progn
-                                        ;---find length of iteration to target field
-               (format t "Hit~%")
-               (format t "~a in topM~%" pix-value)
-               (let ((itr-length (loop-to-target field-pixvalue-map pix-value)))
+               ;;---find length of iteration to target field
+               (let ((itr-length 
+                      (loop-to-target field-pixvalue-map pix-value)))
                  (if itr-length
-                     (progn           
-                                        ;------search mode
-                       (append (list itr-length) int-seq);append itr-length to int-seq
+                     (progn
+                       ;;------search mode
+                       ;;append itr-length to int-seq
+                       (vector-push-extend itr-length int-seq)
                        )
                      )
                  )
                )
              (progn
-                                        ;------mask mode
-               ;(format t "Not Hit~%")
-               ;(format t "~a not in topM~%" pix-value)
-               (loop-next);iterate logistic map once
-               (append (least-8-bits *xn*) mask-seq);append 8 bit mask bits gen from *xn* to mask-seq
-               (append (list 0 pix-value) int-seq);append h0:0 and pix-value to int-seq
+               ;;------mask mode
+               (logistic-map);iterate logistic map once
+               ;;append 8 bit mask bits gen from *xn* to mask-seq
+               (loop for bit in (least-8-bits *xn*)
+                    do (vector-push-extend bit mask-seq))
+               ;;append h0:0 and pix-value to int-seq
+               (vector-push-extend (values 0 pix-value) int-seq)
                )
              )
-         
          )
-    ;;;ppp
     (values mask-seq int-seq)
-    (format t "~%................~%")
     )
   )
 
-(defun loop-to-target(field-pixvalue-map pix-value);return length or nil if bigger than *MAX-len*
-                                        ;if nil recover the *xn*
-  (loop for itr-length from 0 to *MAX-itrs*
-     until
-       (if-hit-sphase *xn* pix-value field-pixvalue-map)
-     finally (return itr-length)
-       )
+(defun loop-to-target(field-pixvalue-map pix-value)
+   ;;;return length or nil if bigger than *MAX-len*
+  (loop for itr-length from 1 to *MAX-itrs*
+     do
+       (if (if-hit-sphase *xn* pix-value field-pixvalue-map)
+           (progn
+             (return-from loop-to-target itr-length))
+           )
+     finally (return (+ 1 *max-itrs*)))
   )
-(defun if-hit-sphase (*xn* pix-value field-pixvalue-map)
-       (format t "~A~%" field-pixvalue-map)
-       T
-       )
+
+(defun if-hit-sphase (xn pix-value field-pixvalue-map)
+  (let ((index-*xn* (truncate (* xn 1024))))
+    (logistic-map);;logistic map for once
+    #|
+    (format t "index-*xn*:~a pix-value:~a in-map: ~a~%" 
+            index-*xn* pix-value 
+            (elt field-pixvalue-map index-*xn*))|#
+            (if (= pix-value (elt field-pixvalue-map index-*xn*))
+                (progn
+                  T)
+                nil)))
 
 (defun least-8-bits(x)
   ;;;return least 8 bits of x in list form
-  (let ((bit-array (make-array 8 :element-type 'bit :fill-pointer 0 :initial-element 0))
+  (let ((bit-array (make-array 8 :element-type 'bit 
+                               :fill-pointer 0 :initial-element 0))
         (bit 0)
         )
     ;;; make integer
@@ -204,7 +218,8 @@
          (nodes (make-hash-table :size length :test test))
          (queue '()))
     (map nil #'(lambda (element)
-                 (multiple-value-bind (node presentp) (gethash element nodes)
+                 (multiple-value-bind 
+                       (node presentp) (gethash element nodes)
                    (if presentp
                      (incf (huffman-node-weight node) increment)
                      (let ((node (make-huffman-node :weight increment
@@ -236,7 +251,6 @@
                    (huffman-node-weight node)
                    (huffman-node-encoding node))))
 
-
 (defun map-pixvalue-on-phase-space(v-p-array)
     (let (
           (sum-topM (cal-topm-sum v-p-array *topM*))        
@@ -246,16 +260,20 @@
       (loop for j below *topM* ;map
            do
            (let* ((partion-number
-                   (+ 1 (truncate (/ (* *N* (elt (elt v-p-array j) 0)) sum-topM) ))))
+                   (+ 1 (truncate 
+                         (/ (* *N* (elt (elt v-p-array j) 0))
+                            sum-topM) ))))
              ;(format t "sum-topM ~a ~%" sum-topM)
              (loop for partion from partion-begin to
                   (min 1023 (+ -1  partion-begin partion-number))
                 do
-                  ;(format t "number ~a partion ~a~%" partion-number partion)
                   (setf (aref field-pixvalue-map partion) j)
                   )
              (setf partion-begin (+ partion-begin partion-number))
-             (setf partion-number (+ 1 (truncate (/ (* *N* (elt (elt v-p-array j) 0)) sum-topM))))
+             (setf partion-number 
+                   (+ 1 (truncate (/ 
+                                   (* *N* (elt (elt v-p-array j) 0))
+                                   sum-topM))))
              )
            )
       field-pixvalue-map
@@ -272,56 +290,39 @@
   )
 
 (defun scan-sort-desc(pix-list)
-  (let* (
-         ;(v-p-array (make-sequence 'list 256 :initial-element (list 0 0)))
-         (v-p-array nil)
+  (let* (;;;(v-p-array 
+         ;;;    (make-sequence 'list 256 :initial-element (list 0 0)))
+         (v-p-array (make-array 256 :element-type 'list 
+                                :fill-pointer 0
+                                :initial-element '(0 0)))
         )
     (loop for i below 256
        do
-         (push `(0 ,i) v-p-array)
+         (vector-push `(0, i) v-p-array)
          )
-    (setf v-p-array (rev v-p-array))
-    (loop for value in pix-list
+    (loop for value across pix-list
        do
-         (incf (elt (elt  v-p-array value) 0))
+         (incf (elt (elt v-p-array value) 0))
          )
-    (setf v-p-array (sort v-p-array #'> :key #'car))
+    (setf v-p-array (sort v-p-array #'> :key #'(lambda(elm) (elt elm 0))))
+    ;;(setf v-p-array (sort v-p-array #'> :key #'car))
     v-p-array
     )
   )
 
-
-(defun test-fun()
-  (let ((i 0)
-        (j 0)
-        (temp-list nil)
-        )
-    
-    (setf temp-list (func i j))
-    (setf i (nth 0 temp-list))
-    (setf j (nth 1 temp-list))
-    (format t "~a ~a" i j)
-    )
-  )
-(defun func (i j)
-  (incf i)
-  (incf j)
-  (list i j)
-  )
-
-
-
 (defun logistic-map()
-                                        ;8 masking bits from the least significant byte of the
-                                        ;chaotic map output x
-  (next)
+      ;;;8 masking bits from the least significant byte of the
+  ;;chaotic map output x
+  (loop-next)
   )
 
 (defun test()
+  (initvar)
   (let (
         (rgb-list (get-RGB-pix-list "/home/w/wk/work/p_girl.jpg"))
         )
     (pix-list-encrypt (nth 0 rgb-list))
+    
     (return-from test)
     (combine-pix-list (pix-list-encrypt (nth 0 rgb-list))
                       (pix-list-encrypt (nth 1 rgb-list))
@@ -330,7 +331,7 @@
   )
 
 (defun combine-pix-list(r-pix-list g-pix-list b-pix-list)
-                                        ; combine channels as RGB pixels, with append
+        ;;; combine channels as RGB pixels, with append
   (format t "~%length of R ~a~%" (length r-pix-list))
   (format t "length of R ~a~%" (length r-pix-list))
   (format t "length of R ~a~%" (length r-pix-list))
@@ -338,9 +339,18 @@
 
 (defun get-rgb-pix-list(imagefile)
   (let ((img (read-jpeg-file imagefile))
-        (r-pix-list nil)
-        (g-pix-list nil)
-        (b-pix-list nil))
+        (r-pix-list (make-array 0 :element-type 'INTEGER
+                                :initial-element 0
+                                :adjustable T
+                                :fill-pointer 0))
+        (g-pix-list (make-array 0 :element-type 'INTEGER
+                                :initial-element 0
+                                :adjustable T
+                                :fill-pointer 0))
+        (b-pix-list (make-array 0 :element-type 'INTEGER
+                                :initial-element 0
+                                :adjustable T
+                                :fill-pointer 0)))
     (with-image-bounds ( height width) img 
       (loop for i below height
          do (loop for j below width
@@ -350,18 +360,13 @@
                    (declare (type (unsigned-byte 8) r g b))
                    #|(if (= i 0)
                        (format t "(~a ~a ~a) ~%" r g b))|#
-                   (push r r-pix-list)
-                   (push g g-pix-list)
-                   (push b b-pix-list)
+                   (vector-push-extend r r-pix-list)
+                   (vector-push-extend g g-pix-list)
+                   (vector-push-extend b b-pix-list)
                    )
                  )
            )
       )
-    ;(format t "iiii ~%~a ~%" r-pix-list)
-    (setf r-pix-list (rev r-pix-list))
-    ;(format t "iiii ~% ~a ~%" r-pix-list)
-    (setf g-pix-list (rev g-pix-list))
-    (setf b-pix-list (rev b-pix-list))
     (list r-pix-list g-pix-list b-pix-list)
     )
   )
