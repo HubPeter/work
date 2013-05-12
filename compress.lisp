@@ -24,15 +24,12 @@
   ;;SYMBOL NUMBER <SORT DESC>  M SYMBOLS
   ;;DIVID PHASE SPACE INTO N AND GET CODEBOOK
   (SETF *XN* *X0*)
-  (let* ((RGB-pix-list nil))
-    (setf RGB-pix-list (get-RGB-pix-list plainimage))
+  (multiple-value-bind (r-pix-list g-pix-list b-pix-list)
+      (get-RGB-pix-list plainimage)
     (gen-ciper-image plainimage ciperimage
-                     (combine-pix-list
-                      (pix-list-encrypt (nth 0 rgb-pix-list))
-                      (pix-list-encrypt (nth 1 rgb-pix-list))
-                      (pix-list-encrypt (nth 2 rgb-pix-list))
-                      )
-                     )
+                     (pix-list-encrypt r-pix-list)
+                     (pix-list-encrypt g-pix-list)
+                     (pix-list-encrypt b-pix-list))
     )
   )
 ;; int-seq gen here
@@ -311,23 +308,17 @@
 
 (defun test()
   (initvar)
-  (let (
-        (rgb-list (get-RGB-pix-list "/home/w/wk/work/p_girl.jpg"))
-        )
-    (pix-list-encrypt (nth 0 rgb-list))
-    
-    (return-from test)
-    (combine-pix-list (pix-list-encrypt (nth 0 rgb-list))
-                      (pix-list-encrypt (nth 1 rgb-list))
-                      (pix-list-encrypt (nth 2 rgb-list)))
-    )
+  (multiple-value-bind (r-pix-list g-pix-list b-pix-list)
+      (get-RGB-pix-list "/home/w/wk/work/p_girl.jpg")
+    (combine-code-list (pix-list-encrypt r-pix-list)
+                       (pix-list-encrypt g-pix-list)
+                       (pix-list-encrypt b-pix-list))
+      )
   )
 
-(defun combine-pix-list(r-pix-list g-pix-list b-pix-list)
-        ;;; combine channels as RGB pixels, with append
-  (format t "~%length of R ~a~%" (length r-pix-list))
-  (format t "length of R ~a~%" (length r-pix-list))
-  (format t "length of R ~a~%" (length r-pix-list))
+(defun combine-code-list(r-pix-list g-pix-list b-pix-list)
+  ;; combine channels as RGB pixels, with append
+
   )
 
 (defun get-rgb-pix-list(imagefile)
@@ -360,7 +351,7 @@
                  )
            )
       )
-    (list r-pix-list g-pix-list b-pix-list)
+    (values r-pix-list g-pix-list b-pix-list)
     )
   )
 ;reverse list: l
@@ -373,9 +364,10 @@
     )
   )
 
-(defun gen-ciper-image (plainimage ciperimage rgb-pix-list)
-                                        ;generate ciperimage with header of plainimage
-                )
+(defun gen-ciper-image (plainimage ciperimage r-code g-code b-code)
+  ;;generate ciperimage with header of plainimage
+  ;;
+  )
 
 
 (defun decrypt(ciperimage plainimage)
