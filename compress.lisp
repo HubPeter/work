@@ -1,6 +1,5 @@
-(ql:quickload "opticl")
+ (ql:quickload "opticl")
 (use-package :opticl)
-(load "huf.lisp")
 (defvar *x0* 0.3010198)             ; xn: (0, 1)
 (defvar *alpha* 3.5946)             ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *topM* 10)                  ; top M in [0, 255]
@@ -11,27 +10,105 @@
 (defun main()
   (initvar)
   (FORMAT T "ENCRYPTION....~%")
-  (ENCRYPT "P_HUB.JPG" "C_HUB.JPG")
-  (FORMAT T "DE CRYPTION......~%")
-  (DECRYPT "C_GIRL.JPG" "DE_GIRL.JPG")
+  (ENCRYPT "p_girl.jpg" "c_girl.jpg")
+  ;;(FORMAT T "DE CRYPTION......~%")
+  ;;(DECRYPT "C_GIRL.JPG" "DE_GIRL.JPG")
   )
 (DEFUN INITVAR()
   (SETF *XN* *X0*)
   ;;(FORMAT T "INIT..~%*XN* ~A~%" *XN*)
   )
 
-(DEFUN ENCRYPT (PLAINIMAGE CIPERIMAGE)
+(DEFUN ENCRYPT (plainimage ciperimage)
   ;;SYMBOL NUMBER <SORT DESC>  M SYMBOLS
   ;;DIVID PHASE SPACE INTO N AND GET CODEBOOK
-  (SETF *XN* *X0*)
-  (multiple-value-bind (r-pix-list g-pix-list b-pix-list)
-      (get-RGB-pix-list plainimage)
-    (gen-ciper-image plainimage ciperimage
-                     (pix-list-encrypt r-pix-list)
-                     (pix-list-encrypt g-pix-list)
-                     (pix-list-encrypt b-pix-list))
+  ;; order R G B
+  (let ((all-pix-list (get-RGB-pix-list plainimage))
+        (jpeg-array (make-array 0 :fill-pointer 0
+                                :adjustable T))
+        )
+    (with-open-file (out ciperimage :direction :output
+                            :element-type '(unsigned-byte 8)
+                            :if-exists :supersede)
+      (loop for pix-list in all-pix-list
+         do
+           (multiple-value-bind (huf-tree ciper-list)
+               (pix-list-encrypt pix-list)
+             ;; |  length-of-huf-tree  | + | huf-tree | to jpeg-array
+             (loop for int in (huf-tree-to-array huf-tree)
+                do
+                  (vector-push-extend int jpeg-array)
+                  )
+             ;; |  length-of-code-list  | + | code-list | to jpeg-array
+             (loop for int in (code-list-to-array ciper-list)
+                do
+                  (vector-push-extend int jpeg-array)
+                  )
+             )
+           )
+      
+      )
     )
   )
+
+(defun huf-tree-to-array (huf-tree)
+  (let ((huf-tree-array (make-array 0 :adjustable T
+                                    :element-type '(unsigned-byte)
+                                    :initial-element 0))
+        (len-array (len-in-byte (length huf-tree))))
+    ;; length of len-array
+    (vector-push-extend (length len-array) huf-tree-array)
+    ;; len-array
+    (loop for byte across len-array
+       do (vector-push-extend byte huf-tree-array)
+         )
+    ;; huf-tree
+    (loop for node being each hash-value of huf-tree
+       do 
+         (vector-push-extend (huffman-node-element node) huf-tree-array)
+         (loop for byte across (bit-array-to-byte-array
+                                (huffman-node-encoding node))
+            do (vector-push-extend byte huf-tree-array)))))
+
+(defun bit-array-to-byte-array(bit-array)
+  (let ((byte-array (make-array 0 :adjustable T
+                                :element-type '(unsigned-byte)
+                                :initial-element 0)))
+    (loop for bit across bit-array
+         do(vector-push-extend bit byte-array)
+         )
+    byte-array)
+  )
+
+(defun len-in-byte(len-in-int)
+  (let ((byte-array (make-array  0 :adjustable T
+                                 :fill-pointer 0
+                                 :element-type '(unsigned-byte)
+                                 :initial-element 0)))
+    (format t "len-in-int :~A~%" len-in-int)
+    (loop for i from 1 to 10
+       
+       do
+         (let* ((v (truncate (/ len-in-int 1000)))
+               (r (- len-in-int (* 1000 v))))
+           (vector-push-extend v byte-array)
+           (setf len-in-int r)
+           (format t "v r ~a ~A~%" v r)
+           )
+       until (= len-in-int 0)
+         )
+    
+    byte-array
+    )
+  )
+
+(defun test()
+  (len-in-byte 1000)
+  )
+
+(defun code-list-to-array (code-list)
+  ())
+
 ;; int-seq gen here
 (defun pix-list-encrypt(pix-list)
   (let ((v-p-array nil)
@@ -47,9 +124,35 @@
     (multiple-value-bind (mask-seq int-seq)
         (encrypt-plain-text pix-list v-p-array field-pixvalue-map)
       ;;step 4: Huffman tree from int-seq
-      (setf encoded-int-seq-cleared (huf-encode int-seq))
-      encoded-int-seq-cleared
+      ;;step 5: mask int with mask-seq
+      (multiple-value-bind (huf-tree encoded-int-seq-cleared)
+          (huf-encode int-seq)
+        (mask-int encoded-int-seq-cleared mask-seq))
       )))
+(defun mask-int(int-seq mask-seq)
+  (let ((byte-array (make-array 0 :adjustable T
+                                :fill-pointer 0
+                                :element-type '(unsigned-byte)))
+        (m-index (get-m-index))
+        )
+    (loop for mask-i from 0 to (* 1024 1024 1024) by 32
+         for plain-i from 0 to (* 1024 1024 1024) by 4
+         do
+         (let* ((int-bytes (subseq int-seq plain-i (+ plain-i 4)))         ;; get 32 from int-seq
+                (mask-block (subseq mask-seq mask-index (+ mask-index 32)))     ;; get 32 from mask-seq
+                (ciper-block)
+                )
+           ;; generate ciper block
+           ;;   get int-block
+           (loop for byte across (get-ciper-block ))
+           ;;
+           (setf mask-index (+ (bit-array-to-int ciper-block)
+                               bit-array-to-int (subseq int-seq (+ plain-i 32) (+ plain-i 32 32))
+                               ))
+           )
+         
+         )
+    byte-array))
 
 (defun huf-encode(int-seq)
   (let ((int-seq-cleared 
@@ -78,7 +181,7 @@
           (huffman-node-encoding
            (gethash (elt int-seq-cleared i) huf-tree))
           encoded-int-seq-cleared))
-    encoded-int-seq-cleared))
+    (values huf-tree encoded-int-seq-cleared)))
 (defun huffman-codes (sequence &key (test 'eql))
   (multiple-value-bind
         (nodes tree)
@@ -306,16 +409,6 @@
   (loop-next)
   )
 
-(defun test()
-  (initvar)
-  (multiple-value-bind (r-pix-list g-pix-list b-pix-list)
-      (get-RGB-pix-list "/home/w/wk/work/p_girl.jpg")
-    (combine-code-list (pix-list-encrypt r-pix-list)
-                       (pix-list-encrypt g-pix-list)
-                       (pix-list-encrypt b-pix-list))
-      )
-  )
-
 (defun combine-code-list(r-pix-list g-pix-list b-pix-list)
   ;; combine channels as RGB pixels, with append
 
@@ -351,7 +444,7 @@
                  )
            )
       )
-    (values r-pix-list g-pix-list b-pix-list)
+    (list r-pix-list g-pix-list b-pix-list)
     )
   )
 ;reverse list: l
@@ -364,10 +457,6 @@
     )
   )
 
-(defun gen-ciper-image (plainimage ciperimage r-code g-code b-code)
-  ;;generate ciperimage with header of plainimage
-  ;;
-  )
 
 
 (defun decrypt(ciperimage plainimage)
