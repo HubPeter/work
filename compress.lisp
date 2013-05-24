@@ -1,4 +1,5 @@
- (ql:quickload "opticl")
+(ql:quickload "opticl")
+(ql:quickload "flexi-streams")
 (use-package :opticl)
 (defvar *x0* 0.3010198)             ; xn: (0, 1)
 (defvar *alpha* 3.5946)             ; alpha: 3.5699456<u<=4,0<Xi<1
@@ -25,8 +26,7 @@
   ;; order R G B
   (let ((all-pix-list (get-RGB-pix-list plainimage))
         (jpeg-array (make-array 0 :fill-pointer 0
-                                :adjustable T))
-        )
+                                :adjustable T)))
     (with-open-file (out ciperimage :direction :output
                             :element-type '(unsigned-byte 8)
                             :if-exists :supersede)
@@ -34,41 +34,128 @@
          do
            (multiple-value-bind (huf-tree ciper-list)
                (pix-list-encrypt pix-list)
-             ;; |  length-of-huf-tree  | + | huf-tree | to jpeg-array
-             (loop for int in (huf-tree-to-array huf-tree)
-                do
-                  (vector-push-extend int jpeg-array)
-                  )
-             ;; |  length-of-code-list  | + | code-list | to jpeg-array
+             ;; huf-tree --> jpeg-array
+             (loop for node being each hash-value of huf-tree
+                do (let ((node-element (huffman-node-element node))
+                         (node-encoding (huffman-node-encoding node)))
+                     (vector-push-extend node-element jpeg-array)
+                     ;; EOF:-
+                     (vector-push-extend (char-int #\-) jpeg-array)
+                     (loop for bit across node-encoding
+                        do (vector-push-extend bit jpeg-array))
+                     ;; EOF:-
+                     (vector-push-extend (char-int #\-) jpeg-array)))
+             ;; code-list --> jpeg-array
              (loop for int in (code-list-to-array ciper-list)
-                do
-                  (vector-push-extend int jpeg-array)
-                  )
+                do (vector-push-extend int jpeg-array))))
+      (make-ciper-image plainimage ciperimage jpeg-array))))
+
+(defun code-list-to-array (code-list)
+  )
+
+
+;; function v
+(defun make-ciper-image(plainimage ciperimage jpeg-array)
+  (let ((p-image (read-jpeg-file plainimage)))
+    (with-image-bounds (p-height p-width) p-image
+      (let* (
+             (width p-width)
+             (height (ceiling (/ (length jpeg-array) width)))
+             (c-image (make-8-bit-rgb-image height width))
+             (pix-count (length jpeg-array))
              )
-           )
-      
+        (loop for r from 0 below pix-count by 3
+           for g from 1 below pix-count by 3
+           for b from 2 below pix-count by 3
+           do
+             (setf (pixel c-image 
+                          (truncate (/ r width))
+                          (mod r width))
+                   (values (elt jpeg-array r)
+                           (elt jpeg-array g)
+                           (elt jpeg-array b))))
+        (write-jpeg-file ciperimage c-image)
+        )
       )
     )
   )
+
+
+(defun huf-tree-save(filename huf-tree)
+  (format t "~%saving huf-tree ...~%")
+  (with-open-file (out filename :direction :output
+                       :if-exists :supersede)
+      (with-standard-io-syntax
+        (print huf-tree out))))
+(defun huf-tree-load(filename)
+  (format t "reading huf-tree ... ~%")
+  (let ((huf-tree nil))
+    (with-open-file (in filename)
+      (with-standard-io-syntax 
+        (setf huf-tree (read in))))
+    huf-tree
+    ))
+
+(defun test-huf-tree-io()
+  (let ((filenaem "huf-tree.txt")
+        huf-tree nil)
+    
+    ))
+
 
 (defun huf-tree-to-array (huf-tree)
   (let ((huf-tree-array (make-array 0 :adjustable T
                                     :element-type '(unsigned-byte)
                                     :initial-element 0))
-        (len-array (len-in-byte (length huf-tree))))
-    ;; length of len-array
-    (vector-push-extend (length len-array) huf-tree-array)
+        (len-array (len-in-byte (huf-tree-length huf-tree) 2)))
     ;; len-array
     (loop for byte across len-array
-       do (vector-push-extend byte huf-tree-array)
-         )
+       do (vector-push-extend byte huf-tree-array))
     ;; huf-tree
     (loop for node being each hash-value of huf-tree
-       do 
-         (vector-push-extend (huffman-node-element node) huf-tree-array)
+       do
+         (vector-push-extend
+          (huffman-node-element node) huf-tree-array)
          (loop for byte across (bit-array-to-byte-array
                                 (huffman-node-encoding node))
-            do (vector-push-extend byte huf-tree-array)))))
+            do (vector-push-extend byte huf-tree-array)))
+    huf-tree-array
+    ))
+
+;; function  v
+(defun len-in-byte(len-in-int max)
+  (if (> len-in-int (* 250 255))
+      (progn
+        (format t "big huf-man : ~A~%" len-in-int)
+        (return-from len-in-byte nil)))
+  (let* ((byte-array (make-array  0 :adjustable T
+                                 :fill-pointer 0
+                                 :element-type '(unsigned-byte)
+                                 :initial-element 0))
+         (v (truncate (/ len-in-int 250)))
+         (r (- len-in-int (* 250 v))))
+    (format t "len-in-int :~A~%" len-in-int)
+    (loop for i from 1 to max
+         until (= v 0)
+       do
+         (format t "v r ~a ~A~%" v r)
+         (vector-push-extend v byte-array)
+         (setf v (truncate (/ r 250)))
+         (setf r (- r (* 250 v))))
+    (vector-push-extend r byte-array)
+    byte-array))
+;; function v
+(defun len-in-int(len-bytes)
+  (let ((len 0)
+        (mask 1))
+    (loop for byte across len-bytes
+         do(setf len (+ (* len 250) byte)))
+    len))
+(defun test-len-in-byte()
+  (loop for x in '(0 1 250 251 1000 1024 199999)
+       do(format t "~A-->~A-->~A~%" x (len-in-byte x 2)
+                 (len-in-int (len-in-byte x 2))
+                 )))
 
 (defun bit-array-to-byte-array(bit-array)
   (let ((byte-array (make-array 0 :adjustable T
@@ -79,35 +166,6 @@
          )
     byte-array)
   )
-
-(defun len-in-byte(len-in-int)
-  (let ((byte-array (make-array  0 :adjustable T
-                                 :fill-pointer 0
-                                 :element-type '(unsigned-byte)
-                                 :initial-element 0)))
-    (format t "len-in-int :~A~%" len-in-int)
-    (loop for i from 1 to 10
-       
-       do
-         (let* ((v (truncate (/ len-in-int 1000)))
-               (r (- len-in-int (* 1000 v))))
-           (vector-push-extend v byte-array)
-           (setf len-in-int r)
-           (format t "v r ~a ~A~%" v r)
-           )
-       until (= len-in-int 0)
-         )
-    
-    byte-array
-    )
-  )
-
-(defun test()
-  (len-in-byte 1000)
-  )
-
-(defun code-list-to-array (code-list)
-  ())
 
 ;; int-seq gen here
 (defun pix-list-encrypt(pix-list)
@@ -127,9 +185,15 @@
       ;;step 5: mask int with mask-seq
       (multiple-value-bind (huf-tree encoded-int-seq-cleared)
           (huf-encode int-seq)
-        (mask-int encoded-int-seq-cleared mask-seq))
+        ;;(print-huffman-code-table huf-tree)
+        (values huf-tree (mask-int encoded-int-seq-cleared mask-seq))
+        )
       )))
+
 (defun mask-int(int-seq mask-seq)
+  nil)
+
+(defun mask-int-real(int-seq mask-seq)
   (let ((byte-array (make-array 0 :adjustable T
                                 :fill-pointer 0
                                 :element-type '(unsigned-byte)))
@@ -138,8 +202,11 @@
     (loop for mask-i from 0 to (* 1024 1024 1024) by 32
          for plain-i from 0 to (* 1024 1024 1024) by 4
          do
-         (let* ((int-bytes (subseq int-seq plain-i (+ plain-i 4)))         ;; get 32 from int-seq
-                (mask-block (subseq mask-seq mask-index (+ mask-index 32)))     ;; get 32 from mask-seq
+         ;; get 32 from int-seq
+         (let* ((int-bytes (subseq int-seq plain-i (+ plain-i 4)))
+                ;; get 32 from mask-seq
+                (mask-block (subseq mask-seq mask-index 
+                                    (+ mask-index 32))) 
                 (ciper-block)
                 )
            ;; generate ciper block
@@ -147,7 +214,9 @@
            (loop for byte across (get-ciper-block ))
            ;;
            (setf mask-index (+ (bit-array-to-int ciper-block)
-                               bit-array-to-int (subseq int-seq (+ plain-i 32) (+ plain-i 32 32))
+                               bit-array-to-int 
+                               (subseq int-seq 
+                                       (+ plain-i 32) (+ plain-i 32 32))
                                ))
            )
          
@@ -402,18 +471,11 @@
     v-p-array
     )
   )
-
 (defun logistic-map()
       ;;;8 masking bits from the least significant byte of the
   ;;chaotic map output x
   (loop-next)
   )
-
-(defun combine-code-list(r-pix-list g-pix-list b-pix-list)
-  ;; combine channels as RGB pixels, with append
-
-  )
-
 (defun get-rgb-pix-list(imagefile)
   (let ((img (read-jpeg-file imagefile))
         (r-pix-list (make-array 0 :element-type 'INTEGER
@@ -428,7 +490,7 @@
                                 :initial-element 0
                                 :adjustable T
                                 :fill-pointer 0)))
-    (with-image-bounds ( height width) img 
+    (with-image-bounds ( height width) img
       (loop for i below height
          do (loop for j below width
                do
@@ -456,20 +518,14 @@
     newl
     )
   )
-
-
-
 (defun decrypt(ciperimage plainimage)
   
    )
-
 (defun loop-next()
   ;logstic next value
   (setf *xn* (* *xn* *alpha* (- 1 *xn*)))
   )
-
-(defun test-huf()
+(defun test-huffman-codes()
   (print-huffman-code-table 
    (huffman-codes '( 1 2 3 4 5)))
   )
-
