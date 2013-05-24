@@ -189,9 +189,9 @@
         (values huf-tree (mask-int encoded-int-seq-cleared mask-seq))
         )
       )))
-
 (defun mask-int(int-seq mask-seq)
-  nil)
+  int-seq
+  )
 
 (defun mask-int-real(int-seq mask-seq)
   (let ((byte-array (make-array 0 :adjustable T
