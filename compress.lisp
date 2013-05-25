@@ -13,27 +13,42 @@
   (FORMAT T "ENCRYPTION....~%")
   (ENCRYPT "p_girl.jpg" "c_girl.jpg")
   ;;(FORMAT T "DE CRYPTION......~%")
-  ;;(DECRYPT "C_GIRL.JPG" "DE_GIRL.JPG"))
+  ;;(DECRYPT "C_GIRL.JPG" "DE_GIRL.JPG")
+  )
+
+(defun gen-file-name (pre params tail)
+  (let ((new-name (make-array 0 :adjustable T
+                              :fill-pointer 0
+                              :element-type 'base-char)))
+    (with-output-to-string (s new-name)
+      (format s "~a" pre)
+      (loop for n in params 
+         do(format s "_~a" n))
+      (format s "~a" tail))
+    new-name))
 (defun get-best()
   (loop for topM below 255
        do(let ((*topM* topM)
                (plainimage "p_girl.jpg")
-               (ciperimage "c_girl.jpg")
+               (ciperimage (get-file-name
+                            "c_girl" (list *topM*) ".jpg"))
                (plain-size nil) (ciper-size nil))
            (ENCRYPT plainimage ciperimage)
            (with-open-file (plain plainimage :direction :input)
              (setf plain-size (file-length plain)))
            (with-open-file (ciper ciperimage :direction :input)
              (setf ciper-size (file-length ciper)))
-           (format t "------topM: ~A  ~A --> ~A~%"
-                   *topM* plain-size ciper-size)
            (if (< ciper-size plain-size)
-               (format t "topM: ~A  ~A --> ~A~%"
-                       *topM* plain-size ciper-size)
-               (loop for max-itrs below 128
+               (progn
+                 (format t "topM: ~A  ~A --> ~A~%"
+                         *topM* plain-size ciper-size)
+                 (loop for max-itrs below 128
                     do(let ((*MAX-itrs* max-itrs)
-                          (plain-size nil)
-                          (ciper-size nil))
+                            (plain-size nil)
+                            (ciper-size nil)
+                            (ciperimage 
+                             (get-file-name "c_girl" 
+                                            (list *topM*) ".jpg")))
                         (ENCRYPT plainimage ciperimage)
                         (with-open-file (plain plainimage 
                                                :direction :input)
@@ -41,18 +56,16 @@
                         (with-open-file (ciper ciperimage 
                                                :direction :input)
                           (setf ciper-size (file-length ciper)))
-                        (format t "max-itrs: ~A  ~A --> ~A~%"
-                                *MAX-itrs* plain-size ciper-size))
-                    (if (< ciper-size plain-size)
-                        (format t "     max-itrs: ~A  ~A --> ~A~%"
-                                *MAX-itrs* plain-size ciper-size))
-                    )))))
+                        (if (< ciper-size plain-size)
+                            (format t "     max-itrs: ~A  ~A --> ~A~%"
+                                    *MAX-itrs* plain-size ciper-size)))))
+               (format t "------topM: ~A  ~A --> ~A~%"
+                       *topM* plain-size ciper-size)
+               ))))
 
 (DEFUN INITVAR()
   (SETF *XN* *X0*)
-  (setf *topM* 10)
-  ;;(FORMAT T "INIT..~%*XN* ~A~%" *XN*)
-  )
+  (setf *topM* 10))
 
 (DEFUN ENCRYPT (plainimage ciperimage)
   ;;SYMBOL NUMBER <SORT DESC>  M SYMBOLS
@@ -205,8 +218,7 @@
           (huf-encode int-seq)
         ;;(print-huffman-code-table huf-tree)
         (values huf-tree (mask-int encoded-int-seq-cleared mask-seq))
-        )
-      )))
+        ))))
 (defun mask-int(int-seq mask-seq)
   ;; int-seq is huf-code array, you should sequence it into bit array
   ;; mask-seq is bit-array
@@ -238,8 +250,11 @@
            (let* ((begin (* (+ c-index 1) 32))
                   (end (+ begin 32)))
              (setf block1 (subseq mask-seq begin end)))
+           ;; -- last r[i+1] is c--1
+           (if (= c-index block-count)
+               (setf block1 c--1))
            ;; block2: m[m-index]
-           (let* ((begin 0)
+           (let* ((begin )
                   (end (+ begin 32)))
              (setf block2 (subseq int-bit-seq begin end))
              ;; compute result-block
