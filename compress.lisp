@@ -30,7 +30,7 @@
   (loop for topM below 255
        do(let ((*topM* topM)
                (plainimage "p_girl.jpg")
-               (ciperimage (get-file-name
+               (ciperimage (gen-file-name
                             "c_girl" (list *topM*) ".jpg"))
                (plain-size nil) (ciper-size nil))
            (ENCRYPT plainimage ciperimage)
@@ -47,7 +47,7 @@
                             (plain-size nil)
                             (ciper-size nil)
                             (ciperimage 
-                             (get-file-name "c_girl" 
+                             (gen-file-name "c_girl" 
                                             (list *topM*) ".jpg")))
                         (ENCRYPT plainimage ciperimage)
                         (with-open-file (plain plainimage 
