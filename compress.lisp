@@ -4,6 +4,7 @@
 (load "test.lisp")
 (load "decrypt.lisp")
 (load "huffman.lisp")
+(load "func.lisp")
 (defvar *x0* 0.3388)                ; xn: (0, 1)
 (defvar *alpha* 0.3999999991)       ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *N* 1024)
@@ -34,16 +35,16 @@
       (loop for pix-list in all-pix-list
          do (multiple-value-bind (field-pixvalue-map 
                                   huf-tree ciper-list)
-               (pix-list-encrypt pix-list)
+                (pix-list-encrypt pix-list)
               ;; field-pixvalue-map
-              
-              (loop for byte across 
-                   (field-map-to-byte-array field-pixvalue-map)
-                 do(vector-push-extend byte jpeg-array))
-              (format t "~A~%" field-pixvalue-map)
-              (format t "~A~%" (field-map-to-byte-array 
-                                field-pixvalue-map))
-              (return-from encrypt)
+              (let ((value-length-array 
+                     (field-map-to-byte-array field-pixvalue-map)))
+                ;;   count of value-length
+                (vector-push-extend (/ (length value-length-array) 2) jpeg-array)
+                ;; real value-legnth
+                (loop for byte across value-length-array
+                   do(vector-push-extend byte jpeg-array)))
+              ;;(return-from encrypt)
               ;; huf-tree --> jpeg-array
               (loop for node being each hash-value of huf-tree
                  do (let ((node-element (huffman-node-element node))
@@ -62,30 +63,34 @@
       (make-ciper-image plainimage ciperimage jpeg-array))))
 (defun field-map-to-byte-array (field-pix-map)
   (let ((map-array (make-array 0 :adjustable T
-                               :element-type '(unsigned-byte)
+                               :element-type 'integer
                                :fill-pointer 0)))
-    (let ((begin 0) (length 1)
-          (cur-value (elt field-pix-map 0)))
-      (format t "debug ~%")
-      (loop for index below 1024
-         do(if (= (aref field-pix-map begin)
-                  (aref field-pix-map index))
+      (loop for index below (length field-pix-map)
+         with begin = 0
+         with length = 0 ;; first loop is diff : collectin start from 0
+           ;; other collections start from -1
+         with cur-value = (elt field-pix-map 0)
+         do(if (= cur-value
+                  (elt field-pix-map index))
                ;; still is current value
                (progn
                  (incf length))
                ;; new value
                (progn
+                 (if (> length 255)
+                     (format  t "~A length :field-map-to-byre-array~%" length))
+                 (vector-push-extend cur-value map-array)
+                 (vector-push-extend length map-array)
                  (setf begin index)
                  (setf length 1)
-                 (setf cur-value (aref field-pix-map begin))
-                 (if (> length 255)nil)
-                 (vector-push-extend cur-value field-pix-map)
-                 (vector-push-extend length field-pix-map)
-                 ))))
+                 (setf cur-value (elt field-pix-map begin))))
+           ;; to save last value-length
+           (if (= 1023 index)
+               (progn(vector-push-extend cur-value map-array)
+                     (vector-push-extend length map-array))))
     map-array))
 ;; function v
 (defun make-ciper-image(plainimage ciperimage jpeg-array)
-  (format t "jpeg-array : ~A~%" (length jpeg-array))
   (let ((p-image (read-jpeg-file plainimage)))
     (with-image-bounds (p-height p-width) p-image
       (let* ((width p-width)
@@ -188,27 +193,25 @@
       ;;step 5: mask int with mask-seq
       (multiple-value-bind (huf-tree encoded-int-seq-cleared)
           (huf-encode int-seq)
-        ;;(print-huffman-code-table huf-tree)
         (values field-pixvalue-map huf-tree 
                 (mask-int encoded-int-seq-cleared mask-seq))
         ))))
 (defun mask-int(int-seq mask-seq)
   ;; int-seq is huf-code array, you should sequence it into bit array
   ;; mask-seq is bit-array
-  (format t "~A ~%" (length mask-seq))
   (let* ((ciper-byte-seq (make-array 0 :adjustable T
-                                :fill-pointer 0
+                                     :fill-pointer 0
                                 :element-type '(unsigned-byte)))
-        (ciper-bit-seq (make-array 0 :adjustable T
+         (ciper-bit-seq (make-array 0 :adjustable T
                                    :fill-pointer 0
                                    :element-type 'bit))
-        (int-bit-seq (make-array 0 :adjustable T
-                                :fill-pointer 0
+         (int-bit-seq (make-array 0 :adjustable T
+                                 :fill-pointer 0
                                 :element-type 'bit))
-        (c--1 (gen-init-block))
-        (c-i-1 c--1)
-        ;; plaintext length in block
-        (block-count nil))
+         (c--1 (gen-init-block))
+         (c-i-1 c--1)
+         ;; plaintext length in blocko
+         (block-count nil))
     ;; sequence int-seq into bit array
     (loop for code-elm across int-seq
        do(loop for bit across code-elm
@@ -228,12 +231,19 @@
            (if (= c-index block-count)
                (setf block1 c--1))
            ;; block2: m[m-index]
-           (let* ((begin 0)
+           (let* ((begin 
+                   (* 32 (mod (+ (bit-vector->integer c-i-1)
+                                 (bit-vector->integer block1)) block-count)))
                   (end (+ begin 32)))
              (setf block2 (subseq int-bit-seq begin end))
+             (format t "begin ~%")
              ;; compute result-block
              (setf result-block
-                   (bit-ior block1 (bit-ior block2 c-i-1)))
+                   (integer->bit-vector
+                    (mod (+ (bit-vector->integer block1)
+                            (bit-vector->integer block2)
+                            (bit-vector->integer c-i-1)) 
+                         (expt 2 32)) 32))
              (loop for bit across result-block
                 do(vector-push-extend bit ciper-bit-seq))
              ;; update c-i-1
@@ -402,7 +412,6 @@
      do(if (= (elt (elt v-p-array i) 1) pix-value)
            (return-from if-in-topM T)))
   nil)
-;; ggg
 (defun map-pixvalue-on-phase-space(v-p-array)
     (let (
           (sum-topM (cal-topm-sum v-p-array *topM*))        
