@@ -39,3 +39,11 @@
 
 (defun bit-vector->integer (bits)
    (reduce #'(lambda (a b) (+ (ash a 1) b)) bits))
+
+;reverse list: l
+(defun rev(l)
+  (let ((newl nil))
+    (loop for elm in l
+         do
+         (push elm newl))
+    newl))

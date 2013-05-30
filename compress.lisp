@@ -1,10 +1,11 @@
 (ql:quickload "opticl")
 (ql:quickload "flexi-streams")
 (use-package :opticl)
-(load "test.lisp")
 (load "decrypt.lisp")
 (load "huffman.lisp")
 (load "func.lisp")
+(load "test.lisp")
+(load "compute.lisp")
 (defvar *x0* 0.3388)                ; xn: (0, 1)
 (defvar *alpha* 0.3999999991)       ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *N* 1024)
@@ -33,30 +34,36 @@
                             :element-type '(unsigned-byte 8)
                             :if-exists :supersede)
       (loop for pix-list in all-pix-list
-         do (multiple-value-bind (field-pixvalue-map 
+         do (multiple-value-bind (field-pixvalue-map
                                   huf-tree ciper-list)
                 (pix-list-encrypt pix-list)
               ;; field-pixvalue-map
-              (let ((value-length-array 
-                     (field-map-to-byte-array field-pixvalue-map)))
+              (let ((value-length-array
+                     (field-map-to-byte-array
+                      field-pixvalue-map)))
                 ;;   count of value-length
-                (vector-push-extend (/ (length value-length-array) 2) jpeg-array)
+                (vector-push-extend
+                 (/ (length value-length-array) 2) jpeg-array)
                 ;; real value-legnth
                 (loop for byte across value-length-array
                    do(vector-push-extend byte jpeg-array)))
               ;;(return-from encrypt)
               ;; huf-tree --> jpeg-array
               (loop for node being each hash-value of huf-tree
-                 do (let ((node-element (huffman-node-element node))
+                 do (let ((node-element 
+                           (huffman-node-element node))
                           (node-encoding 
                            (huffman-node-encoding node)))
-                      (vector-push-extend node-element jpeg-array)
+                      (vector-push-extend 
+                       node-element jpeg-array)
                       ;; EOF:-
-                      (vector-push-extend (char-int #\-) jpeg-array)
+                      (vector-push-extend
+                       (char-int #\-) jpeg-array)
                       (loop for bit across node-encoding
                          do (vector-push-extend bit jpeg-array))
                       ;; EOF:-
-                      (vector-push-extend (char-int #\-) jpeg-array)))
+                      (vector-push-extend
+                       (char-int #\-) jpeg-array)))
               ;; code-list --> jpeg-array
               (loop for int across ciper-list
                  do (vector-push-extend int jpeg-array))))
@@ -100,13 +107,12 @@
         (loop for r from 0 below pix-count by 3
            for g from 1 below pix-count by 3
            for b from 2 below pix-count by 3
-           do
-             (setf (pixel c-image 
-                          (truncate (/ r width))
-                          (mod r width))
-                   (values (elt jpeg-array r)
-                           (elt jpeg-array g)
-                           (elt jpeg-array b))))
+           do (setf (pixel c-image 
+                           (truncate (/ r width))
+                           (mod r width))
+                    (values (elt jpeg-array r)
+                            (elt jpeg-array g)
+                            (elt jpeg-array b))))
         (write-jpeg-file ciperimage c-image)))))
 
 (defun huf-tree-to-array (huf-tree)
@@ -199,18 +205,18 @@
 (defun mask-int(int-seq mask-seq)
   ;; int-seq is huf-code array, you should sequence it into bit array
   ;; mask-seq is bit-array
-  (let* ((ciper-byte-seq (make-array 0 :adjustable T
+  (let* ((ciper-byte-seq (make-array 0 :adjustable T 
                                      :fill-pointer 0
                                 :element-type '(unsigned-byte)))
-         (ciper-bit-seq (make-array 0 :adjustable T
-                                   :fill-pointer 0
+         (ciper-bit-seq (make-array 0 :adjustable T 
+                                    :fill-pointer 0
                                    :element-type 'bit))
-         (int-bit-seq (make-array 0 :adjustable T
-                                 :fill-pointer 0
+         (int-bit-seq (make-array 0 :adjustable T 
+                                  :fill-pointer 0
                                 :element-type 'bit))
          (c--1 (gen-init-block))
          (c-i-1 c--1)
-         ;; plaintext length in blocko
+         ;; plaintext length in block
          (block-count nil))
     ;; sequence int-seq into bit array
     (loop for code-elm across int-seq
@@ -220,8 +226,7 @@
     (setf block-count (ceiling (/ (length int-bit-seq) 32)))
     ;; gen new ciper-bit-seq
     (loop for c-index below block-count
-       do
-         (let ((result-block nil)
+       do(let ((result-block nil)
                (block1 nil) (block2 nil) (block3 nil))
            ;; block1: r[i+1]
            (let* ((begin (* (+ c-index 1) 32))
@@ -233,21 +238,23 @@
            ;; block2: m[m-index]
            (let* ((begin 
                    (* 32 (mod (+ (bit-vector->integer c-i-1)
-                                 (bit-vector->integer block1)) block-count)))
+                                 (bit-vector->integer block1))
+                              block-count)))
                   (end (+ begin 32)))
              (setf block2 (subseq int-bit-seq begin end))
-             (format t "begin ~%")
              ;; compute result-block
              (setf result-block
                    (integer->bit-vector
                     (mod (+ (bit-vector->integer block1)
                             (bit-vector->integer block2)
-                            (bit-vector->integer c-i-1)) 
+                            (bit-vector->integer c-i-1))
                          (expt 2 32)) 32))
              (loop for bit across result-block
-                do(vector-push-extend bit ciper-bit-seq))
+                do (vector-push-extend bit ciper-bit-seq))
              ;; update c-i-1
-             (setf c-i-1 (subseq ciper-bit-seq begin end))
+             (let* ((begin (* 32 c-index))
+                    (end (+ 32 begin)))
+               (setf c-i-1 (subseq ciper-bit-seq begin end)))
              )))
     ;; gen ciper-byte-seq from ciper-bit-seq
     (loop for i below (- (length ciper-bit-seq) 8) by 8
@@ -445,14 +452,13 @@
 (defun scan-sort-desc(pix-list)
   (let* (;;;(v-p-array 
          ;;;    (make-sequence 'list 256 :initial-element (list 0 0)))
-         (v-p-array (make-array 256 :element-type 'list 
+         (v-p-array (make-array 256 :element-type 'list
                                 :fill-pointer 0
                                 :initial-element '(0 0))))
     (loop for i below 256
        do(vector-push `(0, i) v-p-array))
     (loop for value across pix-list
-       do
-         (incf (elt (elt v-p-array value) 0)))
+       do(incf (elt (elt v-p-array value) 0)))
     (setf v-p-array (sort v-p-array #'> :key #'(lambda(elm) (elt elm 0))))
     ;;(setf v-p-array (sort v-p-array #'> :key #'car))
     v-p-array))
@@ -484,13 +490,27 @@
                    (vector-push-extend g g-pix-list)
                    (vector-push-extend b b-pix-list)))))
     (list r-pix-list g-pix-list b-pix-list)))
-;reverse list: l
-(defun rev(l)
-  (let ((newl nil))
-    (loop for elm in l
-         do
-         (push elm newl))
-    newl))
+
+(defun get-pix-list(imagefile)
+  (let ((img (read-jpeg-file imagefile))
+        (pix-list (make-array 0 :element-type 'INTEGER
+                              :initial-element 0
+                              :adjustable T
+                              :fill-pointer 0)))
+    (with-image-bounds ( height width) img
+      (loop for i below height
+         do (loop for j below width
+               do
+                 (multiple-value-bind (r g b)
+                     (pixel img i j)
+                   (declare (type (unsigned-byte 8) r g b))
+                   #|(if (= i 0)
+                       (format t "(~a ~a ~a) ~%" r g b))|#
+                   (vector-push-extend r pix-list)
+                   (vector-push-extend g pix-list)
+                   (vector-push-extend b pix-list)))))
+    pix-list))
+
 (defun loop-next()
   ;logstic next value
   (setf *xn* (* *xn* *alpha* (- 1 *xn*)))
