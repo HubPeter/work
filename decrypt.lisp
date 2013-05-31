@@ -1,3 +1,0 @@
-(defun decrypt(ciperimage plainimage)
-  
-  )

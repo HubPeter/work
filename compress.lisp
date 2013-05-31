@@ -1,7 +1,6 @@
 (ql:quickload "opticl")
 (ql:quickload "flexi-streams")
 (use-package :opticl)
-(load "decrypt.lisp")
 (load "huffman.lisp")
 (load "func.lisp")
 (load "test.lisp")
@@ -17,56 +16,99 @@
   (FORMAT T "ENCRYPTION....~%")
   (ENCRYPT "p_girl.jpg" "c_girl.jpg")
   (FORMAT T "DE CRYPTION......~%")
-  (DECRYPT "C_GIRL.JPG" "DE_GIRL.JPG"))
+  (DECRYPT "c_girl.jpg" "de_girl.jpg"))
 (DEFUN INITVAR()
   (SETF *XN* *X0*))
+
+(DEFUN DECRYPT (ciperimage plainimage)
+  ;; use search-mode
+  (INITVAR)
+  ;; get field-pixvalue-map
+  ;; get huf-tree
+  ;; get code-list
+  (let ((all-pix-list (get-pix-list ciperimage))
+        (field-pixvalue-map nil)
+        ;; plain jpeg-array
+        (jpeg-array (make-array 0 :fill-pointer 0
+                                :adjustable T)))
+    (with-open-file (out ciperimage :direction :output
+                            :element-type '(unsigned-byte 8)
+                            :if-exists :supersede)
+      ;; field-pixvalue-map
+      (let ((value-length-array
+             (field-map-to-byte-array
+              field-pixvalue-map)))
+        ;; count of value-length
+        (vector-push-extend
+         (/ (length value-length-array) 2) jpeg-array)
+        ;; real value-legnth
+        (loop for byte across value-length-array
+           do(vector-push-extend byte jpeg-array)))
+      ;; huf-tree --> jpeg-array
+      (loop for node being each hash-value of huf-tree
+         do (let ((node-element
+                   (huffman-node-element node))
+                  (node-encoding
+                   (huffman-node-encoding node)))
+              (vector-push-extend
+               node-element jpeg-array)
+              ;; EOF:-
+              (vector-push-extend
+               (char-int #\-) jpeg-array)
+              (loop for bit across node-encoding
+                 do (vector-push-extend bit jpeg-array))
+              ;; EOF:-
+              (vector-push-extend
+               (char-int #\-) jpeg-array)))
+      ;; code-list --> jpeg-array
+      (loop for int across ciper-list
+         do (vector-push-extend int jpeg-array))
+      (make-ciper-image plainimage ciperimage jpeg-array))))
 
 (DEFUN ENCRYPT (plainimage ciperimage)
   (INITVAR)
   ;;SYMBOL NUMBER <SORT DESC>  M SYMBOLS
   ;;DIVID PHASE SPACE INTO N AND GET CODEBOOK
   ;; order R G B
-  (let ((all-pix-list (get-RGB-pix-list plainimage))
+  (let ((all-pix-list (get-pix-list plainimage))
         (field-pixvalue-map nil)
         (jpeg-array (make-array 0 :fill-pointer 0
                                 :adjustable T)))
     (with-open-file (out ciperimage :direction :output
                             :element-type '(unsigned-byte 8)
                             :if-exists :supersede)
-      (loop for pix-list in all-pix-list
-         do (multiple-value-bind (field-pixvalue-map
-                                  huf-tree ciper-list)
-                (pix-list-encrypt pix-list)
-              ;; field-pixvalue-map
-              (let ((value-length-array
-                     (field-map-to-byte-array
-                      field-pixvalue-map)))
-                ;;   count of value-length
+      (multiple-value-bind (field-pixvalue-map
+                            huf-tree ciper-list)
+          (pix-list-encrypt all-pix-list)
+        ;; field-pixvalue-map
+        (let ((value-length-array
+               (field-map-to-byte-array
+                field-pixvalue-map)))
+          ;; count of value-length
+          (vector-push-extend
+           (/ (length value-length-array) 2) jpeg-array)
+          ;; real value-legnth
+          (loop for byte across value-length-array
+             do(vector-push-extend byte jpeg-array)))
+        ;; huf-tree --> jpeg-array
+        (loop for node being each hash-value of huf-tree
+           do (let ((node-element
+                     (huffman-node-element node))
+                    (node-encoding
+                     (huffman-node-encoding node)))
                 (vector-push-extend
-                 (/ (length value-length-array) 2) jpeg-array)
-                ;; real value-legnth
-                (loop for byte across value-length-array
-                   do(vector-push-extend byte jpeg-array)))
-              ;;(return-from encrypt)
-              ;; huf-tree --> jpeg-array
-              (loop for node being each hash-value of huf-tree
-                 do (let ((node-element 
-                           (huffman-node-element node))
-                          (node-encoding 
-                           (huffman-node-encoding node)))
-                      (vector-push-extend 
-                       node-element jpeg-array)
-                      ;; EOF:-
-                      (vector-push-extend
-                       (char-int #\-) jpeg-array)
-                      (loop for bit across node-encoding
-                         do (vector-push-extend bit jpeg-array))
-                      ;; EOF:-
-                      (vector-push-extend
-                       (char-int #\-) jpeg-array)))
-              ;; code-list --> jpeg-array
-              (loop for int across ciper-list
-                 do (vector-push-extend int jpeg-array))))
+                 node-element jpeg-array)
+                ;; EOF:-
+                (vector-push-extend
+                 (char-int #\-) jpeg-array)
+                (loop for bit across node-encoding
+                   do (vector-push-extend bit jpeg-array))
+                ;; EOF:-
+                (vector-push-extend
+                 (char-int #\-) jpeg-array)))
+        ;; code-list --> jpeg-array
+        (loop for int across ciper-list
+           do (vector-push-extend int jpeg-array)))
       (make-ciper-image plainimage ciperimage jpeg-array))))
 (defun field-map-to-byte-array (field-pix-map)
   (let ((map-array (make-array 0 :adjustable T
@@ -85,7 +127,8 @@
                ;; new value
                (progn
                  (if (> length 255)
-                     (format  t "~A length :field-map-to-byre-array~%" length))
+                     (format  t "~A length :field-map-to-byre-array~%" 
+                              length))
                  (vector-push-extend cur-value map-array)
                  (vector-push-extend length map-array)
                  (setf begin index)
@@ -222,6 +265,9 @@
     (loop for code-elm across int-seq
        do(loop for bit across code-elm
             do(vector-push-extend bit int-bit-seq)))
+    ;;     extend to 32*n
+    (loop for i below (- 32 (mod (length int-bit-seq) 32))
+       do(vector-push-extend 0 int-bit-seq))
     ;; set block-count
     (setf block-count (ceiling (/ (length int-bit-seq) 32)))
     ;; gen new ciper-bit-seq
