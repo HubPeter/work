@@ -38,7 +38,7 @@
        ))
 
 (defun bit-vector->integer (bits)
-   (reduce #'(lambda (a b) (+ (ash a 1) b)) bits))
+  (reduce #'(lambda (a b) (+ (ash a 1) b)) bits))
 
 ;reverse list: l
 (defun rev(l)

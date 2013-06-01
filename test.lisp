@@ -1,7 +1,7 @@
 (defun get-best()
   (let ((min 1000000)
         (plain-size 0)
-        (plainimage "p_girl.jpg")
+        (plainimage "p_cirl.jpg")
         (pre "c_girl"))
     (with-open-file (plain plainimage
                            :direction :input)
@@ -47,5 +47,5 @@
       (loop for n in params 
          do(format s "_~a" n))
       (format s "~a" tail))
-    (format t "~A~%" new-name)
+    ;;(format t "~A~%" new-name)
     new-name))
