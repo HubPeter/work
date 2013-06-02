@@ -1,15 +1,15 @@
 (defun get-best()
   (let ((min 1000000)
         (plain-size 0)
-        (plainimage "p_cirl.jpg")
-        (pre "c_girl"))
+        (plainimage "test.jpg")
+        (pre "c_test"))
     (with-open-file (plain plainimage
                            :direction :input)
       (setf plain-size (file-length plain)))
-    (loop for topM from 10 to 30
+    (loop for topM from 5 to 100
        do(let ((*topM* topM))
            (format t "  topM: ~A~%" *topM*)
-           (loop for max-itrs from 1 to 30
+           (loop for max-itrs from 16 to 17
               do (let ((*MAX-itrs* max-itrs)
                        (ciper-size nil)
                        (ciperimage

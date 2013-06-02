@@ -2,14 +2,16 @@
 (defun integer->bit-vector (integer divds)
   "Create a bit-vector from a positive integer."
   ;; up overflow
-  (if (>= integer (expt 2 divds))
-      (progn
-        (format t "OVERFLOW <integer->bit-vector>~%")
-        (return-from integer->bit-vector)))
-  (if (>= integer (expt 2 divds))
-      (progn
-        (format t "non-nagative only <integer->bit-vector>~%")
-        (return-from integer->bit-vector)))
+  (if  (/= 0 divds)
+       (if (>= integer (expt 2 divds))
+          (progn            
+            (format t "OVERFLOW <integer->bit-vector> ~A~%" divds )
+            (return-from integer->bit-vector))))
+  (if (/= 0 divds)
+      (if (>= integer (expt 2 divds))
+          (progn
+            (format t "non-nagative only <integer->bit-vector>~%")
+            (return-from integer->bit-vector))))
   (labels ((integer->bit-list (int &optional accum)
              (cond ((> int 0)
                     (multiple-value-bind (i r) (truncate int 2)
@@ -21,8 +23,9 @@
           (vector (make-array 32 :adjustable T
                               :element-type 'bit
                               :fill-pointer 0)))
-      (loop for i below (- 32 (length bit-vector))
-           do(vector-push-extend 0 vector))
+      (if (/= 0 divds)
+          (loop for i below (- 32 (length bit-vector))
+             do(vector-push-extend 0 vector)))
       (loop for bit across bit-vector
            do(vector-push-extend bit vector))
       vector)
