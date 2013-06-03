@@ -28,40 +28,122 @@
   (INITVAR)
   ;; unmask the ciper text sequence with mask-seq
   (let ((pix-list (get-pix-list ciperimage))
-        (ciper-bit-seq (make-array 0 :adjustable T
-                                   :element-type 'bit
-                                   :fill-pointer 0))
-        (int-bit-seq (make-array 0 :adjustable T
-                                   :element-type 'bit
-                                   :fill-pointer 0))
-        (int-seq (make-array 0 :adjustable T
-                             :element-type 'integer
-                             :fill-pointer 0))
-        (c--1 gen-init-block)
+        (ciper-bit-seq nil)
+        (int-bit-seq nil)
+        (int-seq nil)
+        (c--1 (gen-init-block))
         (length-of-ciper-bit-seq nil)
-        (ciper-block-count nil)
-        )
+        (ciper-block-count nil))
     ;; get ciper-bit-seq from pix-list
-    (loop for byte across pix-list
-       do(loop for bit across (integer->bit-vector byte 8)
-            do(vector-push-extend bit ciper-bit-seq)))
+    (setf ciper-bit-seq (pix-list->ciper-bit pix-list))
     (setf length-of-ciper-bit-seq (length ciper-bit-seq))
     (setf ciper-block-count (ceiling (/ length-of-ciper-bit-seq 32)))
     ;; get int-bit-seq from ciper-bit-seq
-    (loop for c-index below ciper-block-count
-       do
-         ;; get c-i-1
-         
-         ;; get c-i-2
-         ;; get m[ c-i-2 ]
-         ;; get r-i
-         )
+    (setf int-bit-seq (ciper-bit->int-bit ciper-bit-seq c--1))
     ;; decode with hufman tree
-    ;; 
+    (setf int-seq (decode-with-huffman int-bit-seq huf-tree))
     ;; scan the int-seq
     ;;     if 0 output the letter block to jpeg-array
     ;;     else loop number and find the phase adn loop up the map
     ))
+
+(defun decode-with-huffman (int-bit-seq huf-tree)
+  (let ((int-seq (make-array 0 :adjustable T
+                             :element-type '(unsigned-byte)
+                             :fill-pointer 0))
+        (max-length 100)
+        (begin 0) ;; >= begin
+        (pre-0 nil)
+        (length-of-int-bit-seq (length int-bit-seq))
+        (next-code nil))
+    (loop for i from 1
+       until (>= begin (- length-of-int-bit-seq 1))
+       do(multiple-value-bind (value new-begin pre-0)
+             (find-next huf-tree int-bit-seq begin nil)
+           ;; check if subseq is in huf-tree
+           ;; get pix-value and jump pix-value
+           (if value
+               (progn
+                 (vector-push-extend value int-seq))
+               (progn
+                 (format t "Not found ~%" )))
+           ;; update begin
+           (setf begin new-begin)
+           ))
+    int-seq))
+
+(defun  find-next(huf-tree int-bit-seq begin pre-0)
+  (let ((value nil)
+        (new-begin nil)
+        (max-length 100)
+        (new-pre-0))
+    (loop for length from 1 to max-length
+       do(let ((temp-vector
+                (subseq int-bit-seq begin (+ begin length))))
+           (if pre-0
+               (progn 
+                 (loop for temp-begin from begin to (+ begin max-length)
+                      
+                      ))
+               (progn 
+                 (loop for node being each hash-value of huf-tree
+                    do (if (seq-equal temp-vector
+                                      (huffman-node-element node))
+                           (progn
+                             (setf value (huffman-node-element node))
+                             (setf new-begin (+ begin length))
+                             (if (= 0 value)
+                                 (setf new-pre-0 T))
+                             (return-from find-next 
+                               (values value new-begin new-pre-0)))))))))))
+
+(defun ciper-bit->int-bit (ciper-bit-seq c--1)
+  (let ((int-bit-seq (make-array 0 :adjustable T
+                                 :element-type 'bit
+                                 :fill-pointer 0))
+        (c-i-1 c--1)
+        (c-i nil)
+        (r-i+1 nil))
+    (loop for c-index below ciper-block-count
+       do
+       ;; get c-i
+         (let* ((begin (* 32 c-index))
+                (end (+ 32 begin)))
+           (setf c-i (subseq ciper-bit-seq begin end)))
+       ;; compute r-i+1
+         (setf r-i+1 
+               (integer->bit-vector
+                (mod (+ (bit-vector->integer c-i)
+                        (bit-vector->integer c-i-1))
+                     (expt 2 32))
+                32))
+       ;; push r-i+1 to int-seq
+         (loop for bit across r-i+1
+            do (vector-push-extend bit int-bit-seq))
+       ;; update c-i-1
+         (let* ((begin (* 32 c-index))
+                (end (+ begin 32)))
+           (setf c-i-1
+                 (subseq ciper-bit-seq begin end))))
+    int-bit-seq))
+
+(defun pix-list->ciper-bit (pix-list)
+  (let ((ciper-bit-seq (make-array 0 :adjustable T
+                                   :element-type 'bit
+                                   :fill-pointer 0)))
+    (loop for byte across pix-list
+       do(loop for bit across (integer->bit-vector byte 8)
+            do(vector-push-extend bit ciper-bit-seq)))
+    ciper-bit-seq))
+
+(defun seq-equal(s1 s2)
+    (if (/= (length s1) (length s2))
+        (return-from seq-equal nil))
+    (loop for bit across s1
+         for bit2 across s2
+         do(if (/= bit bit2)
+               (return-from seq-equal nil)))
+    T)
 
 (defun mask-int(int-seq mask-seq)
   (let* ((ciper-byte-seq nil)
@@ -202,7 +284,6 @@
         (loop for int across ciper-list
            do(vector-push-extend int jpeg-array))
         (make-ciper-image plainimage ciperimage jpeg-array)
-        (print-huffman-code-table huf-tree)
         huf-tree))))
 ;; function v
 (defun make-ciper-image(plainimage ciperimage jpeg-array)
@@ -265,14 +346,12 @@
        do (vector-push-extend byte huf-tree-array))
     ;; huf-tree
     (loop for node being each hash-value of huf-tree
-       do
-         (vector-push-extend
+       do (vector-push-extend
           (huffman-node-element node) huf-tree-array)
          (loop for byte across (bit-array-to-byte-array
                                 (huffman-node-encoding node))
             do (vector-push-extend byte huf-tree-array)))
-    huf-tree-array
-    ))
+    huf-tree-array))
 
 ;; function  v
 (defun len-in-byte(len-in-int max)
