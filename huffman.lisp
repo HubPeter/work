@@ -39,8 +39,7 @@
 (defun print-huffman-code-table (nodes &optional (out *standard-output*))
   (format out "~&Element~10tWeight~20tCode")
   (loop for node being each hash-value of nodes
-     do (format t "~A~%" node)
-       (format out "~&~s~10t~s~20t~s"
+     do(format out "~&~s~10t~s~20t~s"
                (huffman-node-element node)
                (huffman-node-weight node)
                (huffman-node-encoding node))))
