@@ -50,28 +50,123 @@
     ;;(format t "~A~%" new-name)
     new-name))
 
-;; get-pix-list
-;; make-ciper-iamge
+;; get-pix-list  : not sure
+;; make-ciper-iamge: not pass
+;; note:  use clpython
 (defun test-get-pix-list()
   (make-ciper-image "p_girl.jpg" "test_girl.jpg" (get-pix-list "p_girl.jpg")))
-;; get-pix-list
-;; pix-list-encrypt
+
+;; scan-sort-desc : pass
+;; map-pixvalue-on-phase-space : not sure
 (defun test-scan-sort-desc()
   (let ((v-p-array nil)
-        (pix-list nil)
-        (v-p-array2 nil)
-        (pix-list2 nil))
-    (setf pix-list (get-pix-list "p_girl.jpg"))
+        (field-pixvalue-map nil))
+    (setf *plain-list* (get-pix-list "p_girl.jpg"))
     (setf v-p-array
-          (scan-sort-desc pix-list))
+          (scan-sort-desc *plain-list*))
+    (setf field-pixvalue-map (map-pixvalue-on-phase-space v-p-array))
     (print "old v-p-array~%")
-    (print (subseq pix-list 0 20))
-    (make-ciper-image "p_girl.jpg" "test_girl.jpg" pix-list)
-    (setf pix-list2 (get-pix-list "test_girl.jpg"))
-    ;;(setf pix-list2 (get-pix-list "test_girl.jpg"))
+    ;;(print (subseq *plain-list* 0 20))
+    ;;(print (subseq v-p-array 0 20))
+    (print field-pixvalue-map)
+    (if (/= 78 (elt *plain-list* 0))
+        (progn
+          (print "/=")
+          (setf (elt *plain-list* 0) 78)))
     (setf v-p-array
-          (scan-sort-desc pix-list))
-    (print "new~%")
-    (print (subseq pix-list2 0 20))
-    ;;(print (subseq pix-list2 0 20))
+          (scan-sort-desc *plain-list*))
+    (setf field-pixvalue-map (map-pixvalue-on-phase-space v-p-array))
+    (print "new v-p-array~%")
+    ;;(print (subseq *plain-list* 0 20))
+    ;;(print (subseq v-p-array 0 20))
+    (print field-pixvalue-map)
     nil))
+
+;; : all encoded is in topM or 0
+(defun test-huf-encode(int-seq-cleared v-p-array)
+  (format t "test-huf-encode~%")
+  (loop for e across int-seq-cleared
+     do(if (not (if-in-topM v-p-array *topM* e))
+           (progn
+             nil)
+           (progn
+             (if (/= e 0)
+                 (format t "    ERROr huf-encoded~%"))))))
+;; decode int-seqencoded with huf-tree 
+(defun test-huf-encoded-by-decode (huf-tree encoded-int-seq int-seq)
+  (let ((de-int-seq (make-array 0 :adjustable T
+                                :element-type '(unsigned-byte)
+                                :fill-pointer 0)))
+    (loop for code across encoded-int-seq
+       do(let ((elem (get-element-by-code huf-tree code)))
+           (if elem
+               (vector-push-extend elem de-int-seq)
+               (progn
+                 (vector-push-extend (bit-vector->integer code)
+                                     de-int-seq)
+                 (format t "~A ~A ~%" elem code)
+                 ;; check if all not in topM
+                 ;;(print-huffman-code-table  huf-tree)
+                 ;;(return-from test-huf-encoded-by-decode)
+                 ))))
+    (print (subseq int-seq 0 100))
+    (print (subseq encoded-int-seq 0 100))
+    (print (subseq de-int-seq 0 100))
+    (if (not (seq-equal int-seq de-int-seq))
+        (format t "~%Decode Failed~%")
+        (print "Decode SUCCESSFULLY~%"))))
+
+;; get element by code
+(defun get-element-by-code(huf-tree code)
+  (loop for node being each hash-value of huf-tree
+     do(if (seq-equal code
+                      (huffman-node-encoding node))
+           (return-from get-element-by-code
+             (huffman-node-element node))))
+  nil)
+
+;; encrypt-plain-text
+(defun test-encrypt-plain-text()
+  (let ((v-p-array nil)
+        (int-seq nil)
+        (mask-seq nil)
+        (counter 1)
+        (field-pixvalue-map nil))
+    (setf *plain-list* (get-pix-list "p_girl.jpg"))
+    (setf v-p-array
+          (scan-sort-desc *plain-list*))
+    (setf field-pixvalue-map (map-pixvalue-on-phase-space v-p-array))
+    (multiple-value-bind (int-seq mask-seq)
+        (encrypt-plain-text *plain-list* v-p-array field-pixvalue-map)
+      (loop for i below (length int-seq)
+           do(if (= 0 (elt int-seq i))
+                 (incf i)
+                 (progn
+                   (incf counter)
+                   (print (elt int-seq i))))))
+    ;;(print v-p-array)
+    (print counter)
+    (print (sumvector v-p-array)))
+    nil)
+
+;; get cum of *topM* of v-p-array
+(defun sumvector(v)
+  (let ((sum 0))
+    (loop for n across v
+         for i below *topM*
+       do (incf sum (elt n 0)))
+    sum))
+
+;; mask-int
+(defun test-mask-int-with-unmask(ciper-bit-seq int-bit-seq
+                                 mask-seq c--1 ciper-block-count)
+  (let ((de-int-bit-seq nil))
+    (setf de-int-bit-seq
+          (ciper-bit->int-bit ciper-bit-seq c--1 ciper-block-count))
+    ;;(print (subseq int-bit-seq 0 400))
+    ;;(print (subseq ciper-bit-seq 0 400))
+    (multiple-value-bind (begin max-length)
+        (find-max-match int-bit-seq 
+                        (subseq de-int-bit-seq 100 20000))
+      (format t "begin ~A  max-length ~A~%" begin max-length))
+    (format t "~%")))
