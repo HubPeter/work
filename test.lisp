@@ -49,3 +49,29 @@
       (format s "~a" tail))
     ;;(format t "~A~%" new-name)
     new-name))
+
+;; get-pix-list
+;; make-ciper-iamge
+(defun test-get-pix-list()
+  (make-ciper-image "p_girl.jpg" "test_girl.jpg" (get-pix-list "p_girl.jpg")))
+;; get-pix-list
+;; pix-list-encrypt
+(defun test-scan-sort-desc()
+  (let ((v-p-array nil)
+        (pix-list nil)
+        (v-p-array2 nil)
+        (pix-list2 nil))
+    (setf pix-list (get-pix-list "p_girl.jpg"))
+    (setf v-p-array
+          (scan-sort-desc pix-list))
+    (print "old v-p-array~%")
+    (print (subseq pix-list 0 20))
+    (make-ciper-image "p_girl.jpg" "test_girl.jpg" pix-list)
+    (setf pix-list2 (get-pix-list "test_girl.jpg"))
+    ;;(setf pix-list2 (get-pix-list "test_girl.jpg"))
+    (setf v-p-array
+          (scan-sort-desc pix-list))
+    (print "new~%")
+    (print (subseq pix-list2 0 20))
+    ;;(print (subseq pix-list2 0 20))
+    nil))

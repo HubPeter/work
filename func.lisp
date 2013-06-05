@@ -43,6 +43,14 @@
 (defun bit-vector->integer (bits)
   (reduce #'(lambda (a b) (+ (ash a 1) b)) bits))
 
+
+(defun test-bignum(n)
+  (if (= 1 n)
+      1
+      (* n (test-bignum (- n 1)))
+      )
+  )
+
 ;reverse list: l
 (defun rev(l)
   (let ((newl nil))
