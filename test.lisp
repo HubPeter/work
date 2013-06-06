@@ -1,3 +1,9 @@
+(defvar *debug-int-seq* nil)
+(defvar *debug-mask-seq* nil)
+(defvar *debug-ciper-bit-seq* nil)
+(defvar *debug-c--1* nil)
+(defvar *debug-encoded-int-seq*)
+
 (defun get-best()
   (let ((min 1000000)
         (plain-size 0)
@@ -92,6 +98,7 @@
            (progn
              (if (/= e 0)
                  (format t "    ERROr huf-encoded~%"))))))
+;; pass
 ;; decode int-seqencoded with huf-tree 
 (defun test-huf-encoded-by-decode (huf-tree encoded-int-seq int-seq)
   (let ((de-int-seq (make-array 0 :adjustable T
@@ -157,16 +164,46 @@
        do (incf sum (elt n 0)))
     sum))
 
-;; mask-int
-(defun test-mask-int-with-unmask(ciper-bit-seq int-bit-seq
-                                 mask-seq c--1 ciper-block-count)
+;; store in dynamtic to debug
+(defun store-mask-seq( mask-seq )
+  (setf *debug-mask-seq* mask-seq))
+
+(defun store-ciper-bit-seq( ciper-bit-seq )
+  (setf *debug-ciper-bit-seq* ciper-bit-seq))
+
+(defun store-c--1( c--1 )
+  (setf *debug-c--1* c--1))
+
+(defun store-int-seq( int-seq )
+  (setf *debug-int-seq* int-seq))
+
+(defun store-encoded-int-seq(encoded-int-seq)
+  (setf *debug-encoded-int-seq* encoded-int-seq))
+
+;; encoded-int-seq --> int-bit-seq
+(defun test-encoded-int-seq->int-bit-seq(encoded-int-seq int-bit-seq)
+  (let ((new-int-bit-seq (make-array 0 :adjustable T
+                                     :element-type 'bit
+                                     :fill-pointer 0)))
+    (loop for code across encoded-int-seq 
+         do(loop for bit across code
+              do(vector-push-extend bit new-int-bit-seq)))
+    (if (not (seq-equal new-int-bit-seq int-bit-seq))
+        (format t "encoded-int-seq -> int-bit-seq: FAILED~%")
+        (format t "encoded-int-seq -> int-bit-seq: SUCCESS~%"))))
+;; int-bit-seq --> ciper-bit-seq
+(defun test-int-bit-seq<->ciper-bit-seq(int-bit-seq ciper-bit-seq)
   (let ((de-int-bit-seq nil))
-    (setf de-int-bit-seq
-          (ciper-bit->int-bit ciper-bit-seq c--1 ciper-block-count))
-    ;;(print (subseq int-bit-seq 0 400))
-    ;;(print (subseq ciper-bit-seq 0 400))
-    (multiple-value-bind (begin max-length)
-        (find-max-match int-bit-seq 
-                        (subseq de-int-bit-seq 100 20000))
-      (format t "begin ~A  max-length ~A~%" begin max-length))
-    (format t "~%")))
+    ;;  --> length
+    (format t "int-bit-seq -> ciper-bit-seq~%")
+    (format t "  int-bit-seq-length: ~A~%" (length int-bit-seq))
+    (format t "  ciper-bit-seq-length: ~A~%" (length ciper-bit-seq))
+    ))
+
+;; to get debug info
+(defun start-debug()
+  (setf *debug* T)
+  (setf *decrypt* T))
+(defun stop-debug()
+  (setf *debug* nil)
+  (setf *decrypt* nil))

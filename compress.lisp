@@ -12,7 +12,7 @@
 (defvar *alpha* 3.9999991)       ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *N* 1024)
 (defvar *xn* *x0*)
-(defvar *topM* 10)                  ; top M in [0, 255]
+(defvar *topM* 100)                  ; top M in [0, 255]
 (defvar *MAX-itrs* 50)              ; max length of search mode
 ;; plain-list 
 (defvar *plain-list* nil)
@@ -20,6 +20,9 @@
 (defvar *ciper-list* nil)
 ;; de-list
 (defvar *de-list* nil)
+
+(defvar *debug* nil)
+(defvar *decrypt* nil)
 
 (defun main()
   (FORMAT T "ENCRYPTION....~%")
@@ -44,15 +47,19 @@
 (DEFUN DECRYPT (huf-tree field-pixvalue-map ciperimage deimage)
   (INITVAR)
   ;; unmask the ciper text sequence with mask-seq
-  (let (;;(pix-list (get-pix-list ciperimage))
-        (pix-list *ciper-list*)
-        ;;(ciper-bit-seq nil)
+  (let ((pix-list nil)
+        (ciper-bit-seq nil)
         (plain-list nil)
         (int-bit-seq nil)
         (int-seq nil)
         (c--1 (gen-init-block))
         (length-of-ciper-bit-seq nil)
         (ciper-block-count nil))
+    (if *debug*
+        (progn
+          (setf pix-list (get-pix-list ciperimage)))
+        (progn
+          (setf pix-list *ciper-list*)))
     ;; get ciper-bit-seq from pix-list
     (setf ciper-bit-seq (pix-list->ciper-bit pix-list))
     (setf length-of-ciper-bit-seq (length ciper-bit-seq))
@@ -71,7 +78,7 @@
     (setf plain-list (int-seq->plain-list int-seq field-pixvalue-map))
     ;; make ciper image
     ;;(format t "make-ciper-image...~%")
-    ;;(make-ciper-image ciperimage deimage plain-list)
+    (make-ciper-image ciperimage deimage plain-list)
     (setf *de-list* plain-list)))
 
 (defun encrypt-plain-text (pix-list v-p-array field-pixvalue-map)
@@ -155,7 +162,7 @@
         ;; code-list --> jpeg-array
         (loop for int across ciper-list
            do(vector-push-extend int jpeg-array))
-        ;;(make-ciper-image plainimage ciperimage jpeg-array)
+        (make-ciper-image plainimage ciperimage jpeg-array)
         (setf *ciper-list* jpeg-array)
         (values huf-tree field-pixvalue-map)))))
 
@@ -230,27 +237,27 @@
            (if pre-0
                (progn
                  (print "pre-0: nil")
-                 (loop for temp-begin from begin to (+ begin max-length)
-                    do(multiple-value-bind
-                            (temp-value temp-new-begin temp-new-pre0)
-                          (find-next huf-tree
-                                     int-bit-seq temp-begin nil)
-                        (if temp-value
-                            (progn
-                              (setf value
-                                    (bit-vector->integer
-                                     (subseq int-bit-seq
-                                             begin temp-new-begin)))
-                              (setf new-begin temp-begin)
-                              (return-from find-next
-                                (values value new-begin new-pre-0)))))))
+                 (multiple-value-bind
+                       (temp-value temp-new-begin temp-new-pre0)
+                     (find-next huf-tree
+                                int-bit-seq (+ begin 8) nil)
+                   (if temp-value
+                       (progn
+                         (setf value
+                               (bit-vector->integer
+                                (subseq int-bit-seq
+                                        begin temp-new-begin)))
+                         (setf new-begin (+ temp-begin 1))
+                         (return-from find-next
+                           (values value new-begin new-pre-0)))))
+                 )
                (progn
                  (loop for node being each hash-value of huf-tree
                     do(if (seq-equal temp-vector
                                      (huffman-node-encoding node))
                           (progn
                             (setf value (huffman-node-element node))
-                            (setf new-begin (+ begin length))
+                            (setf new-begin (+ begin length 1))
                             (if (= 0 value)
                                 (setf new-pre-0 T))
                             (return-from find-next
@@ -341,7 +348,7 @@
                (return-from seq-equal nil)))
     T)
 
-(defun mask-int(int-seq mask-seq)
+(defun mask-int (encoded-int-seq mask-seq)
   (let* ((ciper-byte-seq nil)
          (ciper-bit-seq (make-array 0 :adjustable T
                                     :fill-pointer 0
@@ -357,9 +364,11 @@
          (length-of-mask-bit-seq (length mask-bit-seq))
          (length-of-int-bit-seq nil))
     ;; sequence int-seq into bit array
-    (loop for code-elm across int-seq
+    (loop for code-elm across encoded-int-seq
        do(loop for bit across code-elm
             do(vector-push-extend bit int-bit-seq)))
+                                        ;test point
+    (test-encoded-int-seq->int-bit-seq encoded-int-seq int-bit-seq)
     (setf int-block-count (ceiling (/ (length int-bit-seq) 32)))
     (setf length-of-int-bit-seq (length int-bit-seq))
     ;; gen new ciper-bit-seq
@@ -395,9 +404,6 @@
              (let* ((begin (* 32 c-index))
                     (end (+ 32 begin)))
                (setf c-i-1 (subseq ciper-bit-seq begin end))))))
-    ;; test point
-    (test-mask-int-with-unmask ciper-bit-seq int-bit-seq
-                               mask-seq c--1 int-block-count)
     ;; gen ciper-byte-seq from ciper-bit-seq
     (setf ciper-byte-seq (bit-vector->byte-vector ciper-bit-seq))
   ciper-byte-seq))
@@ -413,7 +419,7 @@
              (height (ceiling (/ (length jpeg-array) 3 width)))
              (c-image nil)
              (pix-count (length jpeg-array)))
-        (format t "~%8-bit-rgb-image~%")
+        ;; should typecase
         (setf c-image (make-8-bit-rgb-image height width))
         (loop for r from 0 below pix-count by 3
            for g from 1 below pix-count by 3
@@ -424,8 +430,9 @@
                    (values (elt jpeg-array r)
                            (elt jpeg-array g)
                            (elt jpeg-array b))))
-        (format t "write image ~A~%" ciperimage)
-        (write-jpeg-file ciperimage p-image)
+        (if (and *debug* *decrypt*)
+            (write-jpeg-file ciperimage p-image)
+            (write-jpeg-file ciperimage c-image))
         ))))
 
 (defun field-map-to-byte-array (field-pix-map)
