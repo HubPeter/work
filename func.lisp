@@ -4,7 +4,7 @@
   ;; up overflow
   (if  (/= 0 divds)
        (if (>= integer (expt 2 divds))
-          (progn            
+          (progn
             (format t "OVERFLOW <integer->bit-vector> ~A~%" divds )
             (return-from integer->bit-vector))))
   (if (/= 0 divds)
@@ -43,7 +43,6 @@
 (defun bit-vector->integer (bits)
   (reduce #'(lambda (a b) (+ (ash a 1) b)) bits))
 
-
 (defun test-bignum(n)
   (if (= 1 n)
       1
@@ -58,3 +57,11 @@
          do
          (push elm newl))
     newl))
+
+;; to get debug info
+(defun start-debug()
+  (setf *debug* T)
+  (setf *decrypt* T))
+(defun stop-debug()
+  (setf *debug* nil)
+  (setf *decrypt* nil))

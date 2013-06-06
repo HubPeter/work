@@ -8,6 +8,7 @@
 (load "func.lisp")
 (load "test.lisp")
 (load "compute.lisp")
+(load "lcs.lisp")
 (defvar *x0* 0.3388)                ; xn: (0, 1)
 (defvar *alpha* 3.9999991)       ; alpha: 3.5699456<u<=4,0<Xi<1
 (defvar *N* 1024)
@@ -281,8 +282,7 @@
         (m-i nil)
         (length-of-ciper-bit-seq (length ciper-bit-seq)))
     (loop for c-index below ciper-block-count
-       do
-         ;; get c-i
+       do;; get c-i
          (let* ((begin (* 32 c-index))
                 (end (min (+ 32 begin)
                           length-of-ciper-bit-seq)))
@@ -293,39 +293,18 @@
          (setf r-i+1
                (integer->bit-vector
                 (mod (- (bit-vector->integer c-i)
-                        (bit-vector->integer m-i))
+                        (bit-vector->integer c-i-1))
                      (expt 2 32))
                 32))
          ;; push r-i+1 to int-seq
          (loop for bit across r-i+1
             do (vector-push-extend bit int-bit-seq))
          ;; update c-i-1
-         (let* ((begin (* 32 c-index))
-                (end (min (+ 32 begin)
-                          length-of-ciper-bit-seq)))
-           (setf c-i-1
-                 (subseq ciper-bit-seq begin end))))
+         (setf c-i-1 c-i))
     (loop for bit across c--1
          do(vector-push-extend bit int-bit-seq))
     int-bit-seq))
 
-(defun find-max-match(seq subseq)
-  (let ((length-of-subseq (length subseq))
-        (begin -1)
-        (max-length 0))
-    (loop for i below (- (length seq) length-of-subseq)
-         do(let ((cur-match-length 0))
-             (loop for in-i below length-of-subseq
-                do(if (= (elt seq (+ i in-i))
-                         (elt subseq in-i))
-                      (incf cur-match-length)
-                      (return)))
-             (if (> cur-match-length max-length)
-                 (progn
-                   (setf begin i)
-                   (setf max-length cur-match-length)))
-             ))
-    (values begin max-length)))
 (defun test-find-max-match()
   (find-max-match #*111100110011001101110011 #*1101)
   )
@@ -381,7 +360,9 @@
                (setf block1 c--1)
                (progn
                  (let* ((begin (* (+ c-index 1) 32))
-                        (end (min (+ begin 32) length-of-int-bit-seq)))
+                        (end (min 
+                              (+ begin 32) 
+                              length-of-int-bit-seq)))  ;; [begin, end)
                    (setf block1 (subseq int-bit-seq begin end)))))
            ;; block2: m[m-index]
            (let* ((begin (mod
@@ -394,16 +375,20 @@
              ;; compute result-block
              (setf result-block
                    (integer->bit-vector
-                    (mod (+ (bit-vector->integer block1)
+                    (mod (+ (bit-vector->integer block1) ;; <= 32 bits
                             ;;(bit-vector->integer block2)
-                            (bit-vector->integer c-i-1))
-                         (expt 2 32)) 32))
+                            (bit-vector->integer c-i-1)) ;; 32 bits
+                         (expt 2 32))
+                    32))
              (loop for bit across result-block
                 do (vector-push-extend bit ciper-bit-seq))
              ;; update c-i-1 before incf c-index and for incfed c-index
              (let* ((begin (* 32 c-index))
                     (end (+ 32 begin)))
                (setf c-i-1 (subseq ciper-bit-seq begin end))))))
+                                        ; test point
+    (test-int-bit-seq<->ciper-bit-seq int-bit-seq ciper-bit-seq
+                                      c--1)
     ;; gen ciper-byte-seq from ciper-bit-seq
     (setf ciper-byte-seq (bit-vector->byte-vector ciper-bit-seq))
   ciper-byte-seq))

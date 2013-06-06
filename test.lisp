@@ -192,18 +192,31 @@
         (format t "encoded-int-seq -> int-bit-seq: FAILED~%")
         (format t "encoded-int-seq -> int-bit-seq: SUCCESS~%"))))
 ;; int-bit-seq --> ciper-bit-seq
-(defun test-int-bit-seq<->ciper-bit-seq(int-bit-seq ciper-bit-seq)
-  (let ((de-int-bit-seq nil))
-    ;;  --> length
+(defun test-int-bit-seq<->ciper-bit-seq(int-bit-seq ciper-bit-seq 
+                                        c--1)
+  (let ((de-int-bit-seq nil)
+        (ciper-block-count (ceiling (/ (length ciper-bit-seq) 32))))
     (format t "int-bit-seq -> ciper-bit-seq~%")
-    (format t "  int-bit-seq-length: ~A~%" (length int-bit-seq))
-    (format t "  ciper-bit-seq-length: ~A~%" (length ciper-bit-seq))
+    ;;  --> length
+    (format t "   int-bit-seq-length: ~A~%" (length int-bit-seq))
+    (format t "   ciper-bit-seq-length: ~A~%" (length ciper-bit-seq))
+    (if (/= (length int-bit-seq) (length ciper-bit-seq))
+        (format t "  length-test: FAILED~%")
+        (format t "  length-test: SUCCESS~%"))
+    ;;  <--
+    (format t "int-bit-seq <- ciper-bit-seq~%")
+    (setf de-int-bit-seq
+          (ciper-bit->int-bit ciper-bit-seq c--1 ciper-block-count))
+    ;;    length
+    (format t "  length~%")
+    (format t "   int-bit-seq-length: ~A~%" (length int-bit-seq))
+    (format t "   de-int-bit-seq-length: ~A~%" (length de-int-bit-seq))
+    (if (/= (length int-bit-seq) (length de-int-bit-seq))
+        (format t "  FAILED~%")
+        (format t "  SUCCESS~%"))
+    ;;    contend
+    (format t "  contend equal~%")
+    (let ((lcs
+           (lcs-length int-bit-seq de-int-bit-seq)))
+      (format t "    lcs: ~A~%" lcs))
     ))
-
-;; to get debug info
-(defun start-debug()
-  (setf *debug* T)
-  (setf *decrypt* T))
-(defun stop-debug()
-  (setf *debug* nil)
-  (setf *decrypt* nil))
