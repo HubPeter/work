@@ -2,7 +2,8 @@
 (defvar *debug-mask-seq* nil)
 (defvar *debug-ciper-bit-seq* nil)
 (defvar *debug-c--1* nil)
-(defvar *debug-encoded-int-seq*)
+(defvar *debug-encoded-int-seq* nil)
+(defvar *debug-int-bit-seq* nil)
 
 (defun get-best()
   (let ((min 1000000)
@@ -177,20 +178,26 @@
 (defun store-int-seq( int-seq )
   (setf *debug-int-seq* int-seq))
 
+(defun store-int-bit-seq(int-bit-seq)
+  (setf *debug-int-bit-seq* int-bit-seq))
+
 (defun store-encoded-int-seq(encoded-int-seq)
   (setf *debug-encoded-int-seq* encoded-int-seq))
-
 ;; encoded-int-seq --> int-bit-seq
 (defun test-encoded-int-seq->int-bit-seq(encoded-int-seq int-bit-seq)
   (let ((new-int-bit-seq (make-array 0 :adjustable T
                                      :element-type 'bit
                                      :fill-pointer 0)))
-    (loop for code across encoded-int-seq 
+    ;; encoded-int-seq -> int-bit-seq
+    (loop for i below 32
+       do(vector-push-extend 0 new-int-bit-seq))
+    (loop for code across encoded-int-seq
          do(loop for bit across code
               do(vector-push-extend bit new-int-bit-seq)))
     (if (not (seq-equal new-int-bit-seq int-bit-seq))
-        (format t "encoded-int-seq -> int-bit-seq: FAILED~%")
-        (format t "encoded-int-seq -> int-bit-seq: SUCCESS~%"))))
+        (format t "FAILED: encoded-int-seq -> int-bit-seq~%")
+        (format t "SUCCESS: encoded-int-seq -> int-bit-seq~%"))
+    ))
 ;; int-bit-seq --> ciper-bit-seq
 (defun test-int-bit-seq<->ciper-bit-seq(int-bit-seq ciper-bit-seq 
                                         c--1)
@@ -201,8 +208,8 @@
     (format t "   int-bit-seq-length: ~A~%" (length int-bit-seq))
     (format t "   ciper-bit-seq-length: ~A~%" (length ciper-bit-seq))
     (if (/= (length int-bit-seq) (length ciper-bit-seq))
-        (format t "  length-test: FAILED~%")
-        (format t "  length-test: SUCCESS~%"))
+        (format t "  FAILED: length-test~%")
+        (format t "  SUCCESS: length-test~%"))
     ;;  <--
     (format t "int-bit-seq <- ciper-bit-seq~%")
     (setf de-int-bit-seq
@@ -216,7 +223,38 @@
         (format t "  SUCCESS~%"))
     ;;    contend
     (format t "  contend equal~%")
-    (let ((lcs
-           (lcs-length int-bit-seq de-int-bit-seq)))
-      (format t "    lcs: ~A~%" lcs))
-    ))
+    (let* ((subseq-length 1000)
+           (lcs
+            (lcs-length
+             (subseq int-bit-seq 32 (+ 32 subseq-length))
+             (subseq de-int-bit-seq 0 (+ 32 subseq-length)))))
+      (format t "    lcs: ~A of ~A~%" lcs subseq-length)
+      (if (= lcs subseq-length)
+          (format t "  SUCCESS~%")
+          (format t "  FAILED~%")))))
+
+(defun test-int-bit-seq->int-seq( int-seq )
+  (format t "int-bit-seq -> int-seq~%")
+  (format t "  ~A~%" (subseq int-seq 0 100)))
+
+(defun test-bit-seq->byte-seq(bit-seq byte-seq)
+  (let ((de-bit-seq nil)
+        (de-byte-seq nil))
+    (format t "bit-seq --> byte-seq~%")
+    (setf de-bit-seq (pix-list->ciper-bit byte-seq))
+    (format t "    lcs: ~A~%" (lcs-length
+                               (subseq bit-seq 0 1000)
+                               (subseq de-bit-seq 0 1000)))
+    (format t "  bit-seq: ~A ~%" (length bit-seq))
+    (format t "  de-bit-seq: ~A ~%" (length de-bit-seq))
+    (if (seq-equal de-bit-seq bit-seq)
+        (format t "  SUCCESS~%")
+        (format t "  FAIL~%"))
+    (format t "byte-seq --> bit-seq~%")
+    (setf de-byte-seq (bit-vector->byte-vector bit-seq))
+    (format t "    lcs: ~A~%" (lcs-length 
+                               (subseq byte-seq 0 500)
+                               (subseq de-byte-seq 0 500)))
+    (if (seq-equal de-byte-seq byte-seq)
+        (format t "  SUCCESS~%")
+        (format t "  FAIL~%"))))

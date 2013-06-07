@@ -24,7 +24,7 @@
                               :element-type 'bit
                               :fill-pointer 0)))
       (if (/= 0 divds)
-          (loop for i below (- 32 (length bit-vector))
+          (loop for i below (- divds (length bit-vector))
              do(vector-push-extend 0 vector)))
       (loop for bit across bit-vector
            do(vector-push-extend bit vector))
@@ -65,3 +65,7 @@
 (defun stop-debug()
   (setf *debug* nil)
   (setf *decrypt* nil))
+
+(defun vector->list(v)
+  (loop for e across v
+       collect e))
