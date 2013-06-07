@@ -44,19 +44,6 @@
                       "p_cow"
                       "p_hub")
      do (get-best plainimage pre)))
-
-(defun gen-file-name (pre params tail)
-  (let ((new-name (make-array 0 :adjustable T
-                              :fill-pointer 0
-                              :element-type 'base-char)))
-    (with-output-to-string (s new-name)
-      (format s "~a" pre)
-      (loop for n in params 
-         do(format s "_~a" n))
-      (format s "~a" tail))
-    ;;(format t "~A~%" new-name)
-    new-name))
-
 ;; get-pix-list  : not sure
 ;; make-ciper-iamge: not pass
 ;; note:  use clpython
@@ -232,10 +219,34 @@
       (if (= lcs subseq-length)
           (format t "  SUCCESS~%")
           (format t "  FAILED~%")))))
-
-(defun test-int-bit-seq->int-seq( int-seq )
+;; p: 32 0000000 lasted
+(defun test-decode-with-huffman(int-bit-seq int-seq)
   (format t "int-bit-seq -> int-seq~%")
-  (format t "  ~A~%" (subseq int-seq 0 100)))
+  (format t "  prepare test: ~%")
+  (let* ((lcs-test 2000)
+         (result-lcs (lcs-length (subseq int-bit-seq 0 lcs-test)
+                                 (subseq *debug-int-bit-seq* 
+                                         32 (+ 32 lcs-test)))))
+    (format t "   lcs-test: ~%")
+    (if (= lcs-test result-lcs)
+        (format t "     SUCCESS ~%")
+        (format t "     FAIL ~%")))
+  (if (not (seq-equal int-bit-seq *debug-int-bit-seq*))
+      (format t "   FAIL~%")
+      (format t "   SUCCESS~%"))
+  (format t "  start real test ~%")
+  (if (not (seq-equal int-seq *debug-int-seq*))
+      (progn
+        (let* ((lcs-test 2000)
+               (result-lcs 
+                (lcs-length (subseq int-seq 0 lcs-test)
+                            (subseq *debug-int-seq* 0 lcs-test))))
+          (format t "   lcs-test: ~%")
+          (if (= lcs-test result-lcs)
+              (format t "     SUCCESS ~%")
+              (format t "     FAIL ~A/~A~%" result-lcs lcs-test)))
+        (format t "   FAIL~%"))
+      (format t "   SUCCESS~%")))
 
 (defun test-bit-seq->byte-seq(bit-seq byte-seq)
   (let ((de-bit-seq nil)

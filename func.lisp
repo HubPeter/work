@@ -69,3 +69,14 @@
 (defun vector->list(v)
   (loop for e across v
        collect e))
+(defun gen-file-name (pre params tail)
+  (let ((new-name (make-array 0 :adjustable T
+                              :fill-pointer 0
+                              :element-type 'base-char)))
+    (with-output-to-string (s new-name)
+      (format s "~a" pre)
+      (loop for n in params 
+         do(format s "_~a" n))
+      (format s "~a" tail))
+    ;;(format t "~A~%" new-name)
+    new-name))

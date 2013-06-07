@@ -67,6 +67,7 @@
     (setf ciper-block-count (ceiling (/ length-of-ciper-bit-seq 32)))
     ;; get int-bit-seq from ciper-bit-seq
     ;;(format t "ciper-bit->int-bit...~%")
+    (format t "")
     (setf int-bit-seq
           (ciper-bit->int-bit ciper-bit-seq c--1 ciper-block-count))
     ;; decode with hufman tree
@@ -74,7 +75,7 @@
     ;;   A problem
     (setf int-seq (decode-with-huffman int-bit-seq huf-tree))
                                         ; test point
-    (test-int-bit-seq->int-seq int-seq)
+    (test-decode-with-huffman int-bit-seq int-seq) ;; pass until here
     ;; scan the int-seq
     ;;(format t "int-seq->plain-list...~%")
     (setf plain-list (int-seq->plain-list int-seq field-pixvalue-map))
@@ -135,10 +136,10 @@
     ;;step 3: encrypt each plain text
     (multiple-value-bind (int-seq mask-seq)
         (encrypt-plain-text pix-list v-p-array field-pixvalue-map)
-      ;; (format t "~A~%" int-seq) ;;debug
       ;;step 4: Huffman tree from int-seq
       (multiple-value-bind (huf-tree encoded-int-seq)
           (huf-encode int-seq)
+        (store-int-seq int-seq);; debug
         ;;step 5: mask int with mask-seq
         (values field-pixvalue-map huf-tree
                 (mask-int encoded-int-seq mask-seq))))))
@@ -151,7 +152,7 @@
   (let ((all-pix-list (get-pix-list plainimage))
         (field-pixvalue-map nil)
         (jpeg-array (make-array 0 :fill-pointer 0
-                                :element-type '(unsigned-byte 8)
+                                :element-type '(unsigned-byte)
                                 :adjustable T)))
     ;; store plain-lsit
     (setf *plain-list* all-pix-list)
@@ -201,6 +202,7 @@
         (max-length 100)
         (begin 0) ;; >= begin
         (pre-0 nil)
+        (value nil)
         (length-of-int-bit-seq (length int-bit-seq))
         (next-code nil)
         (progress 0))
@@ -208,13 +210,18 @@
          ;; begin is safe
        always begin
        never (>= begin (- length-of-int-bit-seq 1))
-       do(let ((new-progress (truncate (* 100 (/ begin length-of-int-bit-seq)))))
+       do
+         #|(let ((new-progress (truncate
+                              (* 100 (/ begin length-of-int-bit-seq)))))
            (if (> new-progress progress)
                (progn (setf progress new-progress)
                  ;;(format t " ~A % ~C~%" progress #\return) ;;debug
-                 )))
-         (multiple-value-bind (value new-begin pre-0)
+                 )))|#
+         (multiple-value-bind (new-value new-begin new-pre-0)
              (find-next huf-tree int-bit-seq begin pre-0)
+           (setf value new-value)
+           (setf begin new-begin)
+           (setf pre-0 new-pre-0)
            ;; check if subseq is in huf-tree
            ;; get pix-value and jump pix-value
            (if value
@@ -238,7 +245,6 @@
                 (subseq int-bit-seq begin (+ begin length))))
            (if pre-0
                (progn
-                 (print "pre-0: 0~%")
                  (setf value
                        (bit-vector->integer
                         (subseq int-bit-seq
