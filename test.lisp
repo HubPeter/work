@@ -6,6 +6,7 @@
 (defvar *debug-int-bit-seq* nil)
 
 (defun get-best()
+  (format t "~%")
   (let ((min 1000000)
         (plain-size 0)
         (plainimage "test.jpg")
@@ -48,11 +49,13 @@
 ;; make-ciper-iamge: not pass
 ;; note:  use clpython
 (defun test-get-pix-list()
+  (format t "~%")
   (make-ciper-image "p_girl.jpg" "test_girl.jpg" (get-pix-list "p_girl.jpg")))
 
 ;; scan-sort-desc : pass
 ;; map-pixvalue-on-phase-space : not sure
 (defun test-scan-sort-desc()
+  (format t "~%")
   (let ((v-p-array nil)
         (field-pixvalue-map nil))
     (setf *plain-list* (get-pix-list "p_girl.jpg"))
@@ -78,6 +81,7 @@
 
 ;; : all encoded is in topM or 0
 (defun test-huf-encode(int-seq-cleared v-p-array)
+  (format t "~%")
   (format t "test-huf-encode~%")
   (loop for e across int-seq-cleared
      do(if (not (if-in-topM v-p-array *topM* e))
@@ -89,6 +93,7 @@
 ;; pass
 ;; decode int-seqencoded with huf-tree 
 (defun test-huf-encoded-by-decode (huf-tree encoded-int-seq int-seq)
+  (format t "~%")
   (let ((de-int-seq (make-array 0 :adjustable T
                                 :element-type '(unsigned-byte)
                                 :fill-pointer 0)))
@@ -172,31 +177,36 @@
   (setf *debug-encoded-int-seq* encoded-int-seq))
 ;; encoded-int-seq --> int-bit-seq
 (defun test-encoded-int-seq->int-bit-seq(encoded-int-seq int-bit-seq)
+  (format t "~%")
   (let ((new-int-bit-seq (make-array 0 :adjustable T
                                      :element-type 'bit
                                      :fill-pointer 0)))
     ;; encoded-int-seq -> int-bit-seq
+    (format t "encoded-int-seq -> int-bit-seq~%")
     (loop for i below 32
        do(vector-push-extend 0 new-int-bit-seq))
     (loop for code across encoded-int-seq
          do(loop for bit across code
               do(vector-push-extend bit new-int-bit-seq)))
     (if (not (seq-equal new-int-bit-seq int-bit-seq))
-        (format t "FAILED: encoded-int-seq -> int-bit-seq~%")
-        (format t "SUCCESS: encoded-int-seq -> int-bit-seq~%"))
+        (format t "  FAILED:~%")
+        (format t "  SUCCESS: ~%"))
     ))
+
 ;; int-bit-seq --> ciper-bit-seq
-(defun test-int-bit-seq<->ciper-bit-seq(int-bit-seq ciper-bit-seq 
+(defun test-int-bit-seq<->ciper-bit-seq(int-bit-seq ciper-bit-seq
                                         c--1)
+  (format t "~%")
   (let ((de-int-bit-seq nil)
         (ciper-block-count (ceiling (/ (length ciper-bit-seq) 32))))
     (format t "int-bit-seq -> ciper-bit-seq~%")
     ;;  --> length
     (format t "   int-bit-seq-length: ~A~%" (length int-bit-seq))
     (format t "   ciper-bit-seq-length: ~A~%" (length ciper-bit-seq))
+    (format t "  length-test~%")
     (if (/= (length int-bit-seq) (length ciper-bit-seq))
-        (format t "  FAILED: length-test~%")
-        (format t "  SUCCESS: length-test~%"))
+        (format t "    FAILED:~%")
+        (format t "    SUCCESS:~%"))
     ;;  <--
     (format t "int-bit-seq <- ciper-bit-seq~%")
     (setf de-int-bit-seq
@@ -210,7 +220,7 @@
         (format t "  SUCCESS~%"))
     ;;    contend
     (format t "  contend equal~%")
-    (let* ((subseq-length 1000)
+    (let* ((subseq-length 2000)
            (lcs
             (lcs-length
              (subseq int-bit-seq 32 (+ 32 subseq-length))
@@ -218,9 +228,15 @@
       (format t "    lcs: ~A of ~A~%" lcs subseq-length)
       (if (= lcs subseq-length)
           (format t "  SUCCESS~%")
-          (format t "  FAILED~%")))))
+          (progn 
+            (format t "  FAILED~%")
+            (format t "    my-lcs-length: ~A / ~A ~A ~%"
+                    (my-lcs-length int-bit-seq de-int-bit-seq)
+                    (length int-bit-seq)
+                    (length de-int-bit-seq)))))))
 ;; p: 32 0000000 lasted in decrypt
 (defun test-decode-with-huffman(int-bit-seq int-seq)
+  (format t "~%")
   (format t "int-bit-seq -> int-seq~%")
   (format t "  prepare test: ~%")
   (let* ((lcs-test 2000)
@@ -265,6 +281,7 @@
       (format t "   SUCCESS~%")))
 
 (defun test-bit-seq->byte-seq(bit-seq byte-seq)
+  (format t "~%")
   (let ((de-bit-seq nil)
         (de-byte-seq nil))
     (format t "bit-seq --> byte-seq~%")
@@ -294,6 +311,48 @@
              (incf counter)
              (return-from my-lcs-length counter)))
     counter))
+
+(defun test-mask-seq (mask-seq)
+  (format t "~%")
+  (format t "test-mask-seq ~%")
+  (if (not (seq-equal mask-seq *debug-mask-seq*))
+      (progn
+        (format t " my-lcs-length: ~A / ~A ~A~%"
+                (my-lcs-length mask-seq *debug-mask-seq*)
+                (length mask-seq)
+                (length *debug-mask-seq*))
+        (let* ((lcs-test 1000)
+               (begin 0)
+               (result-lcs
+                (lcs-length (subseq mask-seq begin (+ begin lcs-test))
+                            (subseq *debug-mask-seq* begin (+ begin lcs-test)))))
+          (format t " lcs-test: ~A / ~A ~%" result-lcs lcs-test)
+          (if (= lcs-test result-lcs)
+              (format t "     SUCCESS ~%")
+              (format t "     FAIL~%")))
+        (format t "   FAIL~%"))
+      (format t "   SUCCESS~%")))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #|
 (defun test-huf-tree(huf-tree)

@@ -55,12 +55,15 @@
     ;; get ciper-bit-seq from pix-list
     (setf ciper-bit-seq (pix-list->ciper-bit pix-list))
     (setf length-of-ciper-bit-seq (length ciper-bit-seq))
-
     ;; get int-bit-seq from ciper-bit-seq
     ;;(format t "ciper-bit->int-bit...~%")
-    (format t "")
     (setf int-bit-seq
           (ciper-bit->int-bit ciper-bit-seq c--1))
+
+    ;; debug
+    (format t "ciper-block-count:~A~%" (ceiling (/ (length ciper-bit-seq) 32)))
+    (format t "int-block-count:~A~%" (ceiling (/ (length int-bit-seq) 32)))
+
     ;; decode with hufman tree
     ;;(format t "decode-with-huffman...~%")
     ;;   A problem
@@ -260,13 +263,14 @@
           (setf value
                 (bit-vector->integer
                  (subseq int-bit-seq
-                         begin (+ begin 8))))
+                         begin 
+                         (min (+ begin 8) length-of-int-bit-seq))))
           (setf new-begin (+ begin 8))
           (return-from find-next
             (values value new-begin nil)))
         ;; try to get real code
         (progn
-          (loop for length from 1 to 
+          (loop for length from 1 to
                (min max-length
                     (- length-of-int-bit-seq begin 1))
                do(let ((temp-vector
@@ -292,28 +296,49 @@
          do(loop for bit in (loop-next)
               do(vector-push-extend bit mask-seq)))
     mask-seq))
+(defun gen-mask-seq(ciper-block-count)
+  (setf *xn* *x0*)
+  (format t "new xn: ~A~%" *xn*)
+  (let ((mask-seq (make-array 0 :adjustable T
+                              :element-type 'bit
+                              :fill-pointer 0))
+        (max-length (* ciper-block-count 4)))
+    (loop for i below max-length
+       do(loop for bit in (loop-next)
+            do(vector-push-extend  bit mask-seq)))
+    mask-seq))
+
 (defun ciper-bit->int-bit (ciper-bit-seq c--1)
   (let* ((int-bit-seq (make-array 0 :adjustable T
                                  :element-type 'bit
                                  :fill-pointer 0))
-        (c-i-1 c--1)
-        (c-i nil)
-        (r-i+1 nil)
-        (m-i nil)
-        (length-of-ciper-bit-seq (length ciper-bit-seq))
-        (ciper-block-count (ceiling (/ length-of-ciper-bit-seq 32))))
+         (c-i-1 c--1)
+         (c-i nil)
+         (r-i+1 nil)
+         (m-c-i-1 nil)
+         (length-of-ciper-bit-seq (length ciper-bit-seq))
+         (ciper-block-count (ceiling (/ length-of-ciper-bit-seq 32)))
+         (mask-seq nil))
+    ;; generate mask-seq
+    (setf mask-seq (gen-mask-seq ciper-block-count))
+                                        ;test point
+    (test-mask-seq mask-seq)
     (loop for c-index below ciper-block-count
        do;; get c-i
          (let* ((begin (* 32 c-index))
                 (end (min (+ 32 begin)
                           length-of-ciper-bit-seq)))
            (setf c-i (subseq ciper-bit-seq begin end)))
-         ;; get m-i
-         (setf m-i (get-32-mask))
+         ;; get m[c-i-1]
+         (let* ((begin (* 32 (mod (bit-vector->integer c-i-1)
+                                  ciper-block-count)))
+               (end (+ begin 32)))
+           (setf m-c-i-1 (subseq mask-seq begin end)))
          ;; compute r-i+1
          (setf r-i+1
                (integer->bit-vector
                 (mod (- (bit-vector->integer c-i)
+                        (bit-vector->integer m-c-i-1) ;; mode switch
                         (bit-vector->integer c-i-1))
                      (expt 2 32))
                 32))
@@ -355,11 +380,9 @@
                                   :fill-pointer 0
                                 :element-type 'bit))
          (c--1 (gen-init-block))
-         (mask-bit-seq mask-seq)
+         (mask-bit-seq nil)
          (c-i-1 c--1)
-         (mask-block-count nil)
          (int-block-count nil)
-         (length-of-mask-bit-seq (length mask-bit-seq))
          (length-of-int-bit-seq nil))
     ;; sequence encoded-int-seq into bit array
     ;;    to use first block
@@ -369,13 +392,17 @@
        do(loop for bit across code-elm
             do(vector-push-extend bit encoded-int-bit-seq)))
                                         ;test point
-    (test-encoded-int-seq->int-bit-seq encoded-int-seq encoded-int-bit-seq)
+    ;;(test-encoded-int-seq->int-bit-seq encoded-int-seq encoded-int-bit-seq)
     (store-int-bit-seq encoded-int-bit-seq) ;; debug
     ;; length-of-int-bit-seq
     (setf length-of-int-bit-seq (length encoded-int-bit-seq))
     (setf int-block-count (ceiling (/ (length encoded-int-bit-seq) 32)))
     ;;    0000000....000  and c-index + 1 will hit the last block
     (decf int-block-count)
+    (format t "in use int-block-count ~A~%" int-block-count)
+    ;; generate mask-bit-seq
+    (setf mask-bit-seq (gen-mask-seq int-block-count))
+    (store-mask-seq mask-bit-seq)
     ;; gen new ciper-bit-seq
     ;; ppp
     (loop for c-index below int-block-count
@@ -388,18 +415,15 @@
                         length-of-int-bit-seq)))  ;; [begin, end)
              (setf block1 (subseq encoded-int-bit-seq begin end)))
            ;; block2: m[m-index]
-           (let* ((begin (mod
-                          (* 32 (mod (+ (bit-vector->integer c-i-1)
-                                        (bit-vector->integer block1))
-                                     int-block-count))
-                          length-of-mask-bit-seq))
-                  (end (min (+ begin 32) length-of-mask-bit-seq)))
+           (let* ((begin (* 32 (mod (bit-vector->integer c-i-1)
+                                    int-block-count)))
+                  (end (+ begin 32)))
              (setf block2 (subseq mask-bit-seq begin end))
              ;; compute result-block
              (setf result-block
                    (integer->bit-vector
                     (mod (+ (bit-vector->integer block1) ;; <= 32 bits
-                            ;;(bit-vector->integer block2) ;; mode switch
+                            (bit-vector->integer block2) ;; mode switch
                             (bit-vector->integer c-i-1)) ;; 32 bits
                          (expt 2 32))
                     32))
@@ -413,7 +437,8 @@
     (test-int-bit-seq<->ciper-bit-seq encoded-int-bit-seq ciper-bit-seq
                                       c--1)
     ;; debug
-    (format t "~A~%" (subseq encoded-int-bit-seq 6469 6569))
+    (format t "ciper-block-count:~A~%" (ceiling (/ (length ciper-bit-seq) 32)))
+    (format t "int-block-count:~A~%" (ceiling (/ (length encoded-int-bit-seq) 32)))
     ;; gen ciper-byte-seq from ciper-bit-seq
     (setf ciper-byte-seq (bit-vector->byte-vector ciper-bit-seq))
                                         ; test point
