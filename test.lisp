@@ -200,7 +200,7 @@
     ;;  <--
     (format t "int-bit-seq <- ciper-bit-seq~%")
     (setf de-int-bit-seq
-          (ciper-bit->int-bit ciper-bit-seq c--1 ciper-block-count))
+          (ciper-bit->int-bit ciper-bit-seq c--1))
     ;;    length
     (format t "  length~%")
     (format t "   int-bit-seq-length: ~A~%" (length int-bit-seq))
@@ -219,32 +219,48 @@
       (if (= lcs subseq-length)
           (format t "  SUCCESS~%")
           (format t "  FAILED~%")))))
-;; p: 32 0000000 lasted
+;; p: 32 0000000 lasted in decrypt
 (defun test-decode-with-huffman(int-bit-seq int-seq)
   (format t "int-bit-seq -> int-seq~%")
   (format t "  prepare test: ~%")
   (let* ((lcs-test 2000)
-         (result-lcs (lcs-length (subseq int-bit-seq 0 lcs-test)
-                                 (subseq *debug-int-bit-seq* 
-                                         32 (+ 32 lcs-test)))))
-    (format t "   lcs-test: ~%")
+         (begin 0)
+         (int-bit-seq *debug-int-bit-seq*)
+         (result-lcs (lcs-length (subseq int-bit-seq begin (+ begin lcs-test))
+                                 (subseq *debug-int-bit-seq*
+                                         (+ begin) (+ begin lcs-test)))))
+    ;;(format t "~A~%" (subseq *debug-int-bit-seq* 0 32))
+    ;;(format t "~A~%" (subseq int-bit-seq 0 32))
+    (format t "   lcs-test: ~A / ~A~%" result-lcs lcs-test)
     (if (= lcs-test result-lcs)
         (format t "     SUCCESS ~%")
-        (format t "     FAIL ~%")))
+        (format t "     FAIL ~%"))
+    (format t "   my-lcs-length: ~A / ~A ~A~%"
+            (my-lcs-length (subseq int-bit-seq 0)
+                           (subseq *debug-int-bit-seq* 0))
+            (length (subseq int-bit-seq 0))
+            (length (subseq *debug-int-bit-seq* 0))))
   (if (not (seq-equal int-bit-seq *debug-int-bit-seq*))
       (format t "   FAIL~%")
       (format t "   SUCCESS~%"))
-  (format t "  start real test ~%")
+  (format t "start real test ~%")
   (if (not (seq-equal int-seq *debug-int-seq*))
       (progn
-        (let* ((lcs-test 2000)
-               (result-lcs 
-                (lcs-length (subseq int-seq 0 lcs-test)
-                            (subseq *debug-int-seq* 0 lcs-test))))
-          (format t "   lcs-test: ~%")
+        (format t " my-lcs-length: ~A / ~A ~A~%"
+                (my-lcs-length int-seq *debug-int-seq*)
+                (length int-seq)
+                (length *debug-int-seq*))
+        (format t "pre: ~A~%" (subseq *debug-int-seq* 1200 1232))
+        (format t "now: ~A~%" (subseq int-seq 1200 1232))
+        (let* ((lcs-test 500)
+               (begin 1200)
+               (result-lcs
+                (lcs-length (subseq int-seq begin (+ begin lcs-test))
+                            (subseq *debug-int-seq* begin (+ begin lcs-test)))))
+          (format t " lcs-test: ~A / ~A ~%" result-lcs lcs-test)
           (if (= lcs-test result-lcs)
               (format t "     SUCCESS ~%")
-              (format t "     FAIL ~A/~A~%" result-lcs lcs-test)))
+              (format t "     FAIL~%")))
         (format t "   FAIL~%"))
       (format t "   SUCCESS~%")))
 
@@ -269,3 +285,40 @@
     (if (seq-equal de-byte-seq byte-seq)
         (format t "  SUCCESS~%")
         (format t "  FAIL~%"))))
+
+(defun my-lcs-length(seq1 seq2)
+  (let ((counter 0))
+    (loop for e1 across seq1
+       for e2 across seq2
+       do(if (= e1 e2)
+             (incf counter)
+             (return-from my-lcs-length counter)))
+    counter))
+
+#|
+(defun test-huf-tree(huf-tree)
+  (format t "value -> huf-code -> value~%")
+  (loop for value below 256
+     do(let* ((encoding (get-encoding-by-value huf-tree value))
+              (de-value (get-element-by-encoding huf-tree encoding)))
+         (if value
+             (if (/= value de-value)
+                 (progn
+                   (format t "~A -> ~A -> ~A~%" value encoding de-value)))
+             (format t "no value with: ~A~%" encoding)))))
+
+(defun get-encoding-by-value (huf-tree value)
+  (format t "get-encoding~%")
+  (loop for node being each hash-value of huf-tree
+     do(if (= value (huffman-node-element node))
+           (return-from get-encoding-by-value 
+             (huffman-node-encoding node))))
+  nil)
+(defun get-element-by-encoding (huf-tree encoding)
+  (format t "get-value~%")
+  (loop for node being each hash-value of huf-tree
+     do(if (seq-equal encoding (huffman-node-encoding node))
+           (return-from get-element-by-encoding
+             (huffman-node-element node))))
+  nil)
+|#

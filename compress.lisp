@@ -31,14 +31,6 @@
       (ENCRYPT "p_wei2.jpg" "c_wei2.jpg")
     (FORMAT T "DE CRYPTION......~%")
     (DECRYPT huf-tree field-pixvalue-map "c_wei2.jpg" "de_wei2.jpg")
-    #|
-    (print "plain-list:")
-    (print (subseq *plain-list* 0 100))
-    (print "ciper-list:")
-    (print (subseq *ciper-list* 0 100))
-    (print "de-list:")
-    (print (subseq *de-list* 0 100))
-    |#
     nil))
 
 (DEFUN INITVAR()
@@ -54,8 +46,7 @@
         (int-bit-seq nil)
         (int-seq nil)
         (c--1 (gen-init-block))
-        (length-of-ciper-bit-seq nil)
-        (ciper-block-count nil))
+        (length-of-ciper-bit-seq nil))
     (if *debug*
         (progn
           (setf pix-list (get-pix-list ciperimage)))
@@ -64,12 +55,12 @@
     ;; get ciper-bit-seq from pix-list
     (setf ciper-bit-seq (pix-list->ciper-bit pix-list))
     (setf length-of-ciper-bit-seq (length ciper-bit-seq))
-    (setf ciper-block-count (ceiling (/ length-of-ciper-bit-seq 32)))
+
     ;; get int-bit-seq from ciper-bit-seq
     ;;(format t "ciper-bit->int-bit...~%")
     (format t "")
     (setf int-bit-seq
-          (ciper-bit->int-bit ciper-bit-seq c--1 ciper-block-count))
+          (ciper-bit->int-bit ciper-bit-seq c--1))
     ;; decode with hufman tree
     ;;(format t "decode-with-huffman...~%")
     ;;   A problem
@@ -117,6 +108,13 @@
                   do (vector-push-extend bit mask-seq))
                (vector-push-extend 0 int-seq)
                (vector-push-extend pix-value int-seq))))
+    ;; debug
+    #|
+    (format t "in encrypt-plain-text~%")
+    (format t "~A~%" (elt int-seq 1216))
+    (format t "125 -> ~A -> ~A~%" (integer->bit-vector 125 8)
+            (bit-vector->integer (integer->bit-vector 125 8)))
+    |#
     (values int-seq mask-seq)
     ))
 
@@ -205,64 +203,86 @@
         (value nil)
         (length-of-int-bit-seq (length int-bit-seq))
         (next-code nil)
+        (value-counter 0)
         (progress 0))
     (loop for i from 1
          ;; begin is safe
        always begin
        never (>= begin (- length-of-int-bit-seq 1))
        do
-         #|(let ((new-progress (truncate
+         (let ((new-progress (truncate
                               (* 100 (/ begin length-of-int-bit-seq)))))
            (if (> new-progress progress)
-               (progn (setf progress new-progress)
-                 ;;(format t " ~A % ~C~%" progress #\return) ;;debug
-                 )))|#
+               (progn
+                 (setf progress new-progress)
+                 (format t "="))))
+         ;;(format t "~%")
          (multiple-value-bind (new-value new-begin new-pre-0)
              (find-next huf-tree int-bit-seq begin pre-0)
            (setf value new-value)
            (setf begin new-begin)
            (setf pre-0 new-pre-0)
+           ;; debug
+           (if (= value-counter 1215)
+               (progn
+                 (format t "~A~%" (subseq int-bit-seq begin (+ begin 200)))
+                 (format t "value: ~A~%" value)
+                 (format t "begin: ~A~%" begin)
+                 (format t "250: ~A~%" (integer->bit-vector 250 8))
+                 (format t "125: ~A~%" (integer->bit-vector 125 8))
+                 (format t "207: ~A~%" (integer->bit-vector 207 8))
+                 ))
            ;; check if subseq is in huf-tree
            ;; get pix-value and jump pix-value
            (if value
                (progn
+                 (incf value-counter);; debug
                  (vector-push-extend value int-seq))
-               (progn
-                 (format t "Not found ~%" )))
+               (if begin 
+                   (progn
+                     (format t "Not found ~%")
+                     (format t "begin: ~A~%" begin)
+                     ;;(format t "~A~%" (subseq int-bit-seq (- begin 50) (+ begin 50)))
+                     )))
            ;; update begin
            (setf begin new-begin)))
+    (format t "~%")
     int-seq))
 
 (defun find-next(huf-tree int-bit-seq begin pre-0)
   (let ((value nil)
         (new-begin nil)
-        (max-length 100)
+        (max-length 200)
         (new-pre-0 nil)
         (length-of-int-bit-seq (length int-bit-seq)))
-    (loop for length from 1 to (min max-length
-                                    (- length-of-int-bit-seq begin 1))
-       do(let ((temp-vector
-                (subseq int-bit-seq begin (+ begin length))))
-           (if pre-0
-               (progn
-                 (setf value
-                       (bit-vector->integer
-                        (subseq int-bit-seq
-                                begin (+ begin 8))))
-                 (setf new-begin (+ begin 8))
-                 (return-from find-next
-                   (values value new-begin new-pre-0)))
-               (progn
-                 (loop for node being each hash-value of huf-tree
-                    do(if (seq-equal temp-vector
-                                     (huffman-node-encoding node))
-                          (progn
-                            (setf value (huffman-node-element node))
-                            (setf new-begin (+ begin length))
-                            (if (= 0 value)
-                                (setf new-pre-0 T))
-                            (return-from find-next
-                              (values value new-begin new-pre-0)))))))))))
+    (if pre-0
+        (progn
+          (setf value
+                (bit-vector->integer
+                 (subseq int-bit-seq
+                         begin (+ begin 8))))
+          (setf new-begin (+ begin 8))
+          (return-from find-next
+            (values value new-begin nil)))
+        ;; try to get real code
+        (progn
+          (loop for length from 1 to 
+               (min max-length
+                    (- length-of-int-bit-seq begin 1))
+               do(let ((temp-vector
+                        (subseq int-bit-seq begin (+ begin length))))
+                   (loop for node being each hash-value of huf-tree
+                      do(if (seq-equal temp-vector
+                                       (huffman-node-encoding node))
+                            (progn
+                              (setf value (huffman-node-element node))
+                              (setf new-begin (+ begin length))
+                              (if (= 0 value)
+                                  (setf new-pre-0 T)
+                                  (setf new-pre-0 nil))
+                              (return-from find-next
+                                (values value new-begin new-pre-0)))))))
+          ))))
 ;; loop-next 4 times
 (defun get-32-mask()
   (let ((mask-seq (make-array 0 :adjustable T
@@ -272,15 +292,16 @@
          do(loop for bit in (loop-next)
               do(vector-push-extend bit mask-seq)))
     mask-seq))
-(defun ciper-bit->int-bit (ciper-bit-seq c--1 ciper-block-count)
-  (let ((int-bit-seq (make-array 0 :adjustable T
+(defun ciper-bit->int-bit (ciper-bit-seq c--1)
+  (let* ((int-bit-seq (make-array 0 :adjustable T
                                  :element-type 'bit
                                  :fill-pointer 0))
         (c-i-1 c--1)
         (c-i nil)
         (r-i+1 nil)
         (m-i nil)
-        (length-of-ciper-bit-seq (length ciper-bit-seq)))
+        (length-of-ciper-bit-seq (length ciper-bit-seq))
+        (ciper-block-count (ceiling (/ length-of-ciper-bit-seq 32))))
     (loop for c-index below ciper-block-count
        do;; get c-i
          (let* ((begin (* 32 c-index))
@@ -301,8 +322,6 @@
             do (vector-push-extend bit int-bit-seq))
          ;; update c-i-1
          (setf c-i-1 c-i))
-    (loop for bit across c--1
-         do(vector-push-extend bit int-bit-seq))
     int-bit-seq))
 
 (defun test-find-max-match()
@@ -358,6 +377,7 @@
     ;;    0000000....000  and c-index + 1 will hit the last block
     (decf int-block-count)
     ;; gen new ciper-bit-seq
+    ;; ppp
     (loop for c-index below int-block-count
        do(let ((result-block nil)
                (block1 nil) (block2 nil) (block3 nil))
@@ -379,7 +399,7 @@
              (setf result-block
                    (integer->bit-vector
                     (mod (+ (bit-vector->integer block1) ;; <= 32 bits
-                            ;;(bit-vector->integer block2)
+                            ;;(bit-vector->integer block2) ;; mode switch
                             (bit-vector->integer c-i-1)) ;; 32 bits
                          (expt 2 32))
                     32))
@@ -392,6 +412,8 @@
                                         ; test point
     (test-int-bit-seq<->ciper-bit-seq encoded-int-bit-seq ciper-bit-seq
                                       c--1)
+    ;; debug
+    (format t "~A~%" (subseq encoded-int-bit-seq 6469 6569))
     ;; gen ciper-byte-seq from ciper-bit-seq
     (setf ciper-byte-seq (bit-vector->byte-vector ciper-bit-seq))
                                         ; test point
