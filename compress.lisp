@@ -59,15 +59,17 @@
     ;;(format t "ciper-bit->int-bit...~%")
     (setf int-bit-seq
           (ciper-bit->int-bit ciper-bit-seq c--1))
-
     ;; debug
     (format t "ciper-block-count:~A~%" (ceiling (/ (length ciper-bit-seq) 32)))
     (format t "int-block-count:~A~%" (ceiling (/ (length int-bit-seq) 32)))
-
     ;; decode with hufman tree
     ;;(format t "decode-with-huffman...~%")
     ;;   A problem
     (setf int-seq (decode-with-huffman int-bit-seq huf-tree))
+                                        ; test point
+    (test-huf-code-conf huf-tree)
+                                        ; test point
+    (test-int-bit-seq int-bit-seq)
                                         ; test point
     (test-decode-with-huffman int-bit-seq int-seq) ;; pass until here
     ;; scan the int-seq
@@ -396,7 +398,8 @@
     (store-int-bit-seq encoded-int-bit-seq) ;; debug
     ;; length-of-int-bit-seq
     (setf length-of-int-bit-seq (length encoded-int-bit-seq))
-    (setf int-block-count (ceiling (/ (length encoded-int-bit-seq) 32)))
+    (setf int-block-count (ceiling (/ length-of-int-bit-seq 32)))
+    (format t "int-block-count compute from length ~A~%" int-block-count)
     ;;    0000000....000  and c-index + 1 will hit the last block
     (decf int-block-count)
     (format t "in use int-block-count ~A~%" int-block-count)

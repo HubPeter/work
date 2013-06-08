@@ -234,6 +234,33 @@
                     (my-lcs-length int-bit-seq de-int-bit-seq)
                     (length int-bit-seq)
                     (length de-int-bit-seq)))))))
+#|
+compare intb-bit-seq from decrypt
+and from encrypt
+test point : decrypt
+|#
+(defun test-int-bit-seq(int-bit-seq)
+  (format t "~%")
+  (format t "compare:~%    decrypt: int-bit-seq~%    encrypt: int-bit-seq~%")
+  (if (not (seq-equal int-bit-seq *debug-int-bit-seq*))
+      (progn
+        (format t "    FAIL~%")
+        (format t "     lcs-test: ~A / ~A~%" 
+                (lcs-length 
+                 (subseq int-bit-seq 0 2000) 
+                 (subseq *debug-int-bit-seq* 32 2032))
+                2000)
+        (format t "     my-lcs-test: ~A / ~A ~A~%" 
+                (my-lcs-length 
+                 int-bit-seq
+                 (subseq *debug-int-bit-seq* 32))
+                (length int-bit-seq)
+                (length *debug-int-bit-seq*))
+        (format t "~A~%" (subseq *debug-int-bit-seq* 0 32))
+        (format t "~A~%" (subseq *debug-int-bit-seq* 0 100)))
+      (progn
+        (format t "    SUCCESS~%"))))
+
 ;; p: 32 0000000 lasted in decrypt
 (defun test-decode-with-huffman(int-bit-seq int-seq)
   (format t "~%")
@@ -332,17 +359,46 @@
               (format t "     FAIL~%")))
         (format t "   FAIL~%"))
       (format t "   SUCCESS~%")))
-
-
-
-
-
-
-
-
-
-
-
+#|
+test if 2 int-seq subseq has same code
+test point: encrypt
+|#
+(defun test-huf-code-conf(huf-tree)
+  (format t "~%")
+  (format t "test-huf-code-conflicate~%")
+  (let ((seq1 #(0 125 4 0 221 0 136))
+        (seq2 #(0 250 21 0 119 8 38))
+        (code1 (make-array 0 :adjustable T
+                           :element-type 'bit
+                           :fill-pointer 0))
+        (code2 (make-array 0 :adjustable T
+                           :element-type 'bit
+                           :fill-pointer 0)))
+    (loop for value across seq1
+       do(let ((code (get-code-by-elem huf-tree value)))
+           (if code
+               (progn
+                 (loop for bit across code
+                    do(vector-push-extend bit code1)))
+               (progn
+                 (loop for bit across (integer->bit-vector value 0)
+                    do(vector-push-extend bit code1))))))
+    (loop for value across seq2
+       do(let ((code (get-code-by-elem huf-tree value)))
+           (if code
+               (progn 
+                 (loop for bit across code
+                    do(vector-push-extend bit code2)))
+               (progn 
+                 (loop for bit across (integer->bit-vector value 0)
+                    do(vector-push-extend bit code2))))))
+    (format t "    length~%")
+    (format t "      ~A ~A~%" (length code1) (length code2))
+    (format t "    lcs~%")
+    (format t "       ~A / ~A ~A" (lcs-length code1 code2)
+            (length code1)
+            (length code2))
+    ))
 
 
 
