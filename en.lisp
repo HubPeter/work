@@ -1,8 +1,8 @@
-(defvar *x0* 0.3010198)  ; xn: (0, 1) 
-(defvar *alpha* 3.5946) ; alpha: 3.5699456<u<=4,0<Xi<1
-(defvar *plainfile* "plain.bmp")
-(defvar *ciperfile* "ciper.bmp")
-(defvar *defile* "de.bmp")
+(defvar *x0* 0.3388)  ; xn: (0, 1) 
+(defvar *alpha* 3.9999991) ; alpha: 3.5699456<u<=4,0<Xi<1
+(defvar *plainfile* "big2.bmp")
+(defvar *ciperfile* "ciper_big2.bmp")
+(defvar *defile* "de_big2.bmp")
 (defvar *decode*)
 (defvar *xn*)
 
@@ -15,10 +15,14 @@
   (bmp-encry)
   (format t "Complete ")
   )
+(defun prepare()
+  (loop for i below 20000
+     do(loop-next-atom)))
 
 (defun bmp-encry ()
   ;encryption the file
   (setf *xn* *x0*)
+  (prepare)
   (format t "*Xn* ~a *x0* ~a~%" *xn* *x0*)
   (let* ((content nil)
          (curfile *ciperfile*) )
@@ -80,6 +84,10 @@
      ))
     
 (defun loop-next()
+  (loop for i below 1
+       do(loop-next-atom)))
+
+(defun loop-next-atom()
   ;logstic next value
   (setf *xn* (* *xn* *alpha* (- 1 *xn*)))
   )

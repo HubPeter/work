@@ -28,9 +28,9 @@
 (defun main()
   (FORMAT T "ENCRYPTION....~%")
   (multiple-value-bind (huf-tree field-pixvalue-map)
-      (ENCRYPT "p_wei2.jpg" "c_wei2.jpg")
+      (ENCRYPT "p_girl.jpg" "c_girl.jpg")
     (FORMAT T "DE CRYPTION......~%")
-    (DECRYPT huf-tree field-pixvalue-map "c_wei2.jpg" "de_wei2.jpg")
+    (DECRYPT huf-tree field-pixvalue-map "c_girl.jpg" "de_girl.jpg")
     nil))
 
 (DEFUN INITVAR()
@@ -623,8 +623,8 @@
             (if code
                 (vector-push-extend code encoded-int-seq)
                 (progn 
-                  (vector-push-extend 
-                   (integer->bit-vector value 0)
+                  (vector-push-extend
+                   (integer->bit-vector value 8) ;; variable mode switch
                    encoded-int-seq))
                 )))
     (values huf-tree encoded-int-seq)))
@@ -711,7 +711,7 @@
   nil)
 (defun map-pixvalue-on-phase-space(v-p-array)
     (let (
-          (sum-topM (cal-topm-sum v-p-array *topM*))        
+          (sum-topM (cal-topm-sum v-p-array *topM*))   
           (field-pixvalue-map (make-array *N* :element-type 'INTEGER
                                           :initial-element 0))
           (partion-begin 0))

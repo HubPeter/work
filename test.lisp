@@ -171,7 +171,10 @@
   (setf *debug-int-seq* int-seq))
 
 (defun store-int-bit-seq(int-bit-seq)
-  (setf *debug-int-bit-seq* int-bit-seq))
+  (setf *debug-int-bit-seq* int-bit-seq)
+  (store-bit-seq-in-file (subseq int-bit-seq 32)
+                         "int-bit-seq.txt")
+  )
 
 (defun store-encoded-int-seq(encoded-int-seq)
   (setf *debug-encoded-int-seq* encoded-int-seq))
@@ -289,22 +292,27 @@ test point : decrypt
   (format t "start real test ~%")
   (if (not (seq-equal int-seq *debug-int-seq*))
       (progn
-        (format t " my-lcs-length: ~A / ~A ~A~%"
-                (my-lcs-length int-seq *debug-int-seq*)
-                (length int-seq)
-                (length *debug-int-seq*))
-        (format t "pre: ~A~%" (subseq *debug-int-seq* 1200 1232))
-        (format t "now: ~A~%" (subseq int-seq 1200 1232))
-        (let* ((lcs-test 500)
-               (begin 1200)
-               (result-lcs
-                (lcs-length (subseq int-seq begin (+ begin lcs-test))
-                            (subseq *debug-int-seq* begin (+ begin lcs-test)))))
-          (format t " lcs-test: ~A / ~A ~%" result-lcs lcs-test)
-          (if (= lcs-test result-lcs)
-              (format t "     SUCCESS ~%")
-              (format t "     FAIL~%")))
-        (format t "   FAIL~%"))
+        (let* ((begin 1000)
+              (end (min (+ begin 10000)
+                        (length *debug-int-seq*)
+                        (length int-seq)))
+               (sub-length 32))
+          (format t " my-lcs-length: ~A / ~A ~A~%"
+                  (my-lcs-length (subseq *debug-int-seq* begin end)
+                                 (subseq int-seq begin end))
+                  (length int-seq)
+                  (length *debug-int-seq*))
+          (format t "pre: ~A~%" (subseq *debug-int-seq* begin (+ begin sub-length)))
+          (format t "now: ~A~%" (subseq int-seq begin (+ begin sub-length)))
+          (let* ((lcs-test 500)
+                 (result-lcs
+                  (lcs-length (subseq int-seq begin (+ begin lcs-test))
+                              (subseq *debug-int-seq* begin (+ begin lcs-test)))))
+            (format t " lcs-test: ~A / ~A ~%" result-lcs lcs-test)
+            (if (= lcs-test result-lcs)
+                (format t "     SUCCESS ~%")
+                (format t "     FAIL~%")))
+          (format t "   FAIL~%")))
       (format t "   SUCCESS~%")))
 
 (defun test-bit-seq->byte-seq(bit-seq byte-seq)
@@ -400,6 +408,16 @@ test point: encrypt
             (length code2))
     ))
 
+(defun store-bit-seq-in-file( bit-seq filename)
+  (format t "~%")
+  (format t "store bit-seq into ~A~%" filename)
+  (with-open-file (out filename :direction :output 
+                       :if-exists :supersede)
+    (format t "~A~%" (subseq bit-seq 0 1000))
+    (loop for bit across bit-seq
+       do(if (= 0 bit)
+             (write-char #\0 out)
+             (write-char #\1 out)))))
 
 
 

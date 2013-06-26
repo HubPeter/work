@@ -14,3 +14,15 @@ image file:
 		c_*.jpg:	加密后的图像
 
 mail:	tecnodechina@gmail.com
+
+安装
+	lispbox: http://common-lisp.net/project/lispbox/
+
+运行程序
+	;; 编译源文件
+	CL>(load "compress.lisp")
+	;; 运行函数，可以用该方式运行任何函数
+	;;   无参
+	(main)
+	;;   带参
+	(encrypt "plain.bmp" "ciper.bmp")
