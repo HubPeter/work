@@ -16,7 +16,10 @@ image file:
 mail:	tecnodechina@gmail.com
 
 安装
-	lispbox: http://common-lisp.net/project/lispbox/
+	光盘中已有压缩包，相关问题可以访问下面的网址
+	lispbox: 
+		http://common-lisp.net/project/lispbox/
+	
 
 运行程序
 	;; 编译源文件
